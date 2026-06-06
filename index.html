@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EVD Screen &amp; Monitor — Ebola active-monitoring planner</title>
+  <link rel="stylesheet" href="/src/ui/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Determining Durations for Active Monitoring — Ebola</h1>
+    <p class="sub">A static reimplementation of the <code>activemonitr</code> Ebola outputs, verified against R.
+      All statistics computed in your browser.</p>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="incub">Incubation-period estimate</button>
+    <button class="tab" data-tab="risk">Undetected infections</button>
+    <button class="tab" data-tab="cost">Cost of active monitoring</button>
+  </nav>
+
+  <!-- TAB 1: incubation -->
+  <section class="panel active" id="panel-incub">
+    <div class="layout">
+      <div class="prose">
+        <h3>Incubation period</h3>
+        <p>The point shows the estimated <strong>median</strong> and <strong>95th-percentile</strong>
+          incubation period for Ebola; the shaded region is the KDE credible region over the posterior
+          (median × 95th-percentile space).</p>
+        <p id="incubReadout" class="readout"></p>
+      </div>
+      <div><div class="plot" id="incubPlot"></div></div>
+    </div>
+  </section>
+
+  <!-- TAB 2: undetected infections -->
+  <section class="panel" id="panel-risk">
+    <div class="layout">
+      <form class="controls">
+        <fieldset>
+          <legend>Probability a monitored individual develops symptoms</legend>
+          <select id="r_phi">
+            <option value="1">1/1</option>
+            <option value="0.1">1/10</option>
+            <option value="0.01" selected>1/100</option>
+            <option value="0.001">1/1,000</option>
+            <option value="0.0001">1/10,000</option>
+          </select>
+        </fieldset>
+        <fieldset>
+          <legend>Days since exposure (u)</legend>
+          <div class="row"><label>low</label><input type="range" id="r_u_lo" min="0" max="30" value="1"><span class="v" id="r_u_lo_v"></span></div>
+          <div class="row"><label>high</label><input type="range" id="r_u_hi" min="0" max="30" value="5"><span class="v" id="r_u_hi_v"></span></div>
+        </fieldset>
+        <fieldset>
+          <legend>Active-monitoring duration (days)</legend>
+          <div class="row"><label>from</label><input type="range" id="r_dur_lo" min="0" max="100" value="1"><span class="v" id="r_dur_lo_v"></span></div>
+          <div class="row"><label>to</label><input type="range" id="r_dur_hi" min="0" max="100" value="28"><span class="v" id="r_dur_hi_v"></span></div>
+        </fieldset>
+        <fieldset>
+          <legend>Credible-interval width</legend>
+          <div class="row"><input type="range" id="r_ci" min="0.5" max="1" step="0.01" value="0.95"><span class="v" id="r_ci_v"></span></div>
+        </fieldset>
+      </form>
+      <div class="twocol">
+        <div><div class="plot" id="riskPlot"></div><p class="timing" id="riskTiming"></p></div>
+        <div>
+          <strong class="tbl-title">Undetected symptomatic infections<br>per 10,000 monitored</strong>
+          <div class="tablewrap"><table id="riskTable"></table></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TAB 3: cost -->
+  <section class="panel" id="panel-cost">
+    <div class="layout">
+      <form class="controls">
+        <fieldset>
+          <legend>Pr(symptoms)</legend>
+          <label class="opt"><input type="checkbox" name="c_phi" value="1"> 1/1</label>
+          <label class="opt"><input type="checkbox" name="c_phi" value="0.1"> 1/10</label>
+          <label class="opt"><input type="checkbox" name="c_phi" value="0.01"> 1/100</label>
+          <label class="opt"><input type="checkbox" name="c_phi" value="0.001" checked> 1/1,000</label>
+          <label class="opt"><input type="checkbox" name="c_phi" value="0.0001" checked> 1/10,000</label>
+        </fieldset>
+        <fieldset>
+          <legend>Cost assumptions</legend>
+          <div class="row"><label>Secondary cases</label><input type="range" id="c_sec" min="0" max="25" value="4"><span class="v" id="c_sec_v"></span></div>
+          <div class="row"><label>Cost/case $M lo</label><input type="range" id="c_cpc_lo" min="0" max="20" value="3"><span class="v" id="c_cpc_lo_v"></span></div>
+          <div class="row"><label>Cost/case $M hi</label><input type="range" id="c_cpc_hi" min="0" max="20" value="5"><span class="v" id="c_cpc_hi_v"></span></div>
+          <div class="row"><label>$/person-day lo</label><input type="range" id="c_cpd_lo" min="0" max="100" value="10"><span class="v" id="c_cpd_lo_v"></span></div>
+          <div class="row"><label>$/person-day hi</label><input type="range" id="c_cpd_hi" min="0" max="100" value="20"><span class="v" id="c_cpd_hi_v"></span></div>
+          <div class="row"><label>False pos $K lo</label><input type="range" id="c_fp_lo" min="0" max="100" value="10"><span class="v" id="c_fp_lo_v"></span></div>
+          <div class="row"><label>False pos $K hi</label><input type="range" id="c_fp_hi" min="0" max="100" value="30"><span class="v" id="c_fp_hi_v"></span></div>
+          <div class="row"><label>Hazard denom</label><input type="range" id="c_haz" min="10" max="10000" step="10" value="1000"><span class="v" id="c_haz_v"></span></div>
+        </fieldset>
+      </form>
+      <div><div class="plot" id="costPlot"></div><p class="timing" id="costTiming"></p></div>
+    </div>
+  </section>
+
+  <footer id="provenance"></footer>
+  <script type="module" src="/src/ui/main.js"></script>
+</body>
+</html>

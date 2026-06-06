@@ -1,0 +1,1 @@
+{"output":"incubation","case":"default","tol":{"rel":1e-09,"abs":1e-12},"posteriorSha256":"c42947b5a92deccfc1a0b1b38e574e1c77bc68b25e388e24e091b762ec5aa297","inputs":[],"expected":{"median":8.87340580602374,"p95":20.2470244797726}}
