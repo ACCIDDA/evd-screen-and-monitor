@@ -31,12 +31,13 @@ Core + verification + dashboard are **built and green**. Only CI/deploy remains 
 
 1. **User confirms** the 3 tabs render correctly (`npm run dev`).
 2. **Task 8 — CI + deploy:**
-   - `.github/workflows/ci.yml`: run `npm test` on every push (no R needed); on a nightly schedule
-     or when the pinned `activeMonitr` version bumps, also run `gen_fixtures.R` drift-check +
-     `diff_harness.R` + assert `src/data/*.json` sha256.
-   - GitHub Pages from `vite build` (`dist/`). **No GitHub remote exists yet — get user go-ahead
-     before creating a remote / pushing.**
-3. **Initial commit** is local-only so far (no remote).
+   - ✅ `.github/workflows/ci.yml`: runs `npm test` + build smoke check on every push/PR (no R needed).
+   - ⏳ R drift layer: on a nightly schedule or when the pinned `activeMonitr` version bumps, also run
+     `gen_fixtures.R` drift-check + `diff_harness.R` + assert `src/data/*.json` sha256.
+   - ⏳ GitHub Pages from `vite build` (`dist/`). Needs `vite.config.js` `base` path
+     (`/evd-screen-and-monitor/`) and a Pages deploy job. **Repo is private** → Pages needs a paid
+     plan or flipping the repo public (license governance still open — see below).
+3. **Remote:** ✅ `origin` = `github.com/ACCIDDA/evd-screen-and-monitor` (**private**), `main` pushed + tracking.
 
 ## Open confirmations (flagged, not blockers)
 
