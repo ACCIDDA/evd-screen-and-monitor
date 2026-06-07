@@ -17,6 +17,7 @@
     <button class="tab active" data-tab="incub">Incubation-period estimate</button>
     <button class="tab" data-tab="risk">Undetected infections</button>
     <button class="tab" data-tab="cost">Cost of active monitoring</button>
+    <button class="tab" data-tab="timeline">Intervention timeline</button>
   </nav>
 
   <!-- TAB 1: incubation -->
@@ -98,6 +99,15 @@
       </form>
       <div><div class="plot" id="costPlot"></div><p class="timing" id="costTiming"></p></div>
     </div>
+  </section>
+
+  <!-- TAB 4: intervention timeline (Phase 2a — scenario-builder shell, no outcomes yet) -->
+  <section class="panel" id="panel-timeline">
+    <div class="tl2-scenario">
+      <p class="tl2-hint">Toggle interventions at right. Drag a band's top or bottom edge (or focus it and use ↑/↓) to set its dates. Dragging the exposure window's <strong>beginning</strong> earlier extends the timeline back.</p>
+    </div>
+    <div class="tl2" id="tl2"></div>
+    <div id="tlNotes" class="tl-notes"></div>
   </section>
 
   <footer id="provenance"></footer>

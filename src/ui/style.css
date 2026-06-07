@@ -26,3 +26,30 @@ table { border-collapse:collapse; font-size:.8rem; width:100%; }
 th,td { border:1px solid var(--bd); padding:3px 8px; text-align:right; }
 th { background:#f6f6f6; position:sticky; top:0; }
 footer { margin-top:1.5rem; padding-top:.8rem; border-top:1px solid var(--bd); color:var(--muted); font-size:.75rem; }
+
+/* intervention timeline (tab 4) — vertical, drag-to-set periods */
+.tl2-scenario { display:flex; flex-wrap:wrap; gap:.4rem 1.4rem; font-size:.85rem; margin-bottom:1rem; align-items:center; }
+.tl2-scenario .row { width:300px; margin:0; }
+.tl2-hint { flex-basis:100%; color:var(--muted); margin:.2rem 0 0; }
+.tl2 { position:relative; display:flex; gap:.4rem; align-items:stretch; }
+.tl2-svg { flex:0 0 auto; touch-action:none; }
+.tl2-svg [data-grip] { cursor:ns-resize; }
+.tl2-svg [data-grip]:focus { outline:none; }
+.tl2-svg [data-grip]:focus .grip-line { stroke-width:4; stroke:var(--accent); }
+.tl2-controls { position:relative; flex:1 1 auto; min-width:240px; }
+.tl2-card { position:absolute; left:.2rem; right:0; font-size:.85rem; }
+.tl2-card .opt { display:flex; align-items:center; gap:.35rem; margin:.05rem 0; }
+.tl2-lbl { display:flex; align-items:center; gap:.35rem; font-weight:600; }
+.tl2-sw { display:inline-block; width:.7rem; height:.7rem; border-radius:2px; flex:0 0 auto; }
+.tl2-ro { color:var(--muted); margin-left:1.05rem; font-variant-numeric:tabular-nums; }
+.tl2-ro-bare { margin-left:1.05rem; }
+.tl2-ro.off { font-style:italic; }
+.tl2-sel { display:block; margin:.25rem 0 0 1.05rem; color:var(--muted); }
+.tl2-sel select { font-size:.8rem; max-width:13rem; }
+.tl2-exp-note { margin:.2rem 0 .4rem; }
+.tl-notes { margin-top:1rem; font-size:.85rem; }
+.tl-card { background:#f3f8fb; border:1px solid #cfe3ef; border-radius:8px; padding:.7rem .9rem; }
+.tl-card ul { margin:.4rem 0; padding-left:1.2rem; }
+.tl-card li { margin:.15rem 0; }
+.tl-defer { color:var(--muted); font-style:italic; margin:.55rem 0 0; }
+.tl-empty { color:var(--muted); }

@@ -9,6 +9,7 @@ import { incubationPoint } from "../core/incubation.js";
 import { computeCosts } from "../core/cost.js";
 import { computeRisk, riskTable, riskAxis } from "../core/risk.js";
 import { baseUniforms, scaleU } from "../core/rng.js";
+import { initTimeline } from "./timeline.js";
 
 const POST = posteriorFile.data.columns;
 const KDE = kdeFile.data;
@@ -161,6 +162,7 @@ function init() {
   drawIncubation();
   drawRisk();
   drawCost();
+  initTimeline();
 }
 
 window.addEventListener("DOMContentLoaded", init);
