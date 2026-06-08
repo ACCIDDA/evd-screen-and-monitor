@@ -59,6 +59,7 @@ function renderRisk() {
   $("r_dur_hi").value = dHi;
   if (+val("r_dur_lo") > dHi) $("r_dur_lo").value = Math.max(0, dHi);
   $("r_ci").value = scenario.ci;
+  $("r_redux").value = scenario.am.reduction;
   syncLabels();
 
   const phi = scenario.expRisk, ci = scenario.ci;
@@ -72,7 +73,7 @@ function renderRisk() {
   const on = scenario.am.on;
   $("r_am_on").checked = on;
   $("riskBody").classList.toggle("locked", !on);
-  ["r_phi", "r_u_lo", "r_u_hi", "r_dur_lo", "r_dur_hi", "r_ci"].forEach((id) => { $(id).disabled = !on; });
+  ["r_phi", "r_u_lo", "r_u_hi", "r_dur_lo", "r_dur_hi", "r_ci", "r_redux"].forEach((id) => { $(id).disabled = !on; });
   $("riskBanner").innerHTML = on ? "" :
     `<p class="banner">Active monitoring is not implemented — these settings are locked. Check “Implement active monitoring” (here or on the timeline) to edit. Figures below are illustrative.</p>`;
 
@@ -157,7 +158,7 @@ function drawCost() {
 // ───────────────────────── wiring ─────────────────────────
 function syncLabels() {
   const m = {
-    r_u_lo: "r_u_lo_v", r_u_hi: "r_u_hi_v", r_dur_lo: "r_dur_lo_v", r_dur_hi: "r_dur_hi_v", r_ci: "r_ci_v",
+    r_u_lo: "r_u_lo_v", r_u_hi: "r_u_hi_v", r_dur_lo: "r_dur_lo_v", r_dur_hi: "r_dur_hi_v", r_ci: "r_ci_v", r_redux: "r_redux_v",
     c_sec: "c_sec_v", c_cpc_lo: "c_cpc_lo_v", c_cpc_hi: "c_cpc_hi_v", c_cpd_lo: "c_cpd_lo_v",
     c_cpd_hi: "c_cpd_hi_v", c_fp_lo: "c_fp_lo_v", c_fp_hi: "c_fp_hi_v", c_haz: "c_haz_v",
   };
@@ -189,6 +190,9 @@ function init() {
   $("r_dur_hi").addEventListener("input", () => { scenario.am.end = scenario.am.start + +val("r_dur_hi"); notify("risk"); });
   $("r_dur_lo").addEventListener("input", () => { syncLabels(); renderRisk(); }); // curve view-window (tab-local)
   $("r_ci").addEventListener("input", () => { scenario.ci = +val("r_ci"); notify("risk"); });
+  $("r_redux").addEventListener("input", () => { scenario.am.reduction = +val("r_redux"); notify("risk"); }); // parameter only
+
+
 
   // cost controls (not linked)
   document.querySelectorAll('input[name="c_phi"]').forEach((e) => e.addEventListener("change", drawCost));

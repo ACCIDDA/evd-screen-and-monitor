@@ -18,14 +18,16 @@ import { scaleU } from "../core/rng.js";
 import { POST, BASE_U } from "./data.js";
 
 export const EXP_MIN = -60, POST_MAX = 120;
+export const MIN_EXP_W = 4; // min exposure-window width (days) — keeps its label clear of arrival
 
 export const scenario = {
   expRisk: 0.01,                  // phi (number) — mirrors the risk tab's #r_phi
   ci: 0.95,                       // CI width — mirrors the risk tab's #r_ci
   exp: { start: -10, end: -2 },   // exposure window (negative day offsets, before arrival)
-  am: { on: false, start: 0, end: 16 }, // start anchored at arrival (day 0) — only the end is set
-
-  q: { on: false, start: 0, end: 10 },
+  // single active-monitoring/quarantine intervention: anchored at arrival (day 0), only the
+  // end is set; reduction = % reduction in onward transmission (0 = active monitoring …
+  // 100 = strict quarantine). Recorded only — not yet fed into a computed outcome.
+  am: { on: false, start: 0, end: 16, reduction: 0 },
   test: false, fever: false,
 };
 
@@ -35,10 +37,10 @@ export function clampScenario() {
   const s = scenario;
   s.exp.start = clamp(s.exp.start, EXP_MIN, 0);
   s.exp.end = clamp(s.exp.end, s.exp.start, 0);
-  for (const k of ["am", "q"]) {
-    s[k].start = clamp(s[k].start, 0, POST_MAX);
-    s[k].end = clamp(s[k].end, s[k].start, POST_MAX);
-  }
+  if (s.exp.end - s.exp.start < MIN_EXP_W) s.exp.start = Math.max(EXP_MIN, s.exp.end - MIN_EXP_W);
+  s.am.start = clamp(s.am.start, 0, POST_MAX);
+  s.am.end = clamp(s.am.end, s.am.start, POST_MAX);
+  s.am.reduction = clamp(s.am.reduction, 0, 100);
   s.ci = clamp(s.ci, 0.5, 1);
 }
 

@@ -2,7 +2,7 @@
 // The number shown on the timeline must equal the Undetected tab's max-duration row.
 
 import { describe, it, expect } from "vitest";
-import { scenario, undetectedAt, uBounds, amDuration } from "../../src/ui/scenario.js";
+import { scenario, undetectedAt, uBounds, amDuration, clampScenario, MIN_EXP_W } from "../../src/ui/scenario.js";
 import { computeRisk, riskTable } from "../../src/core/risk.js";
 import { scaleU } from "../../src/core/rng.js";
 import { POST, BASE_U } from "../../src/ui/data.js";
@@ -40,6 +40,23 @@ describe("timeline ↔ undetected-infections link", () => {
     expect(b["Median"]).toBe(a["Median"]);
     expect(b["Lower bound"]).toBe(a["Lower bound"]);
     expect(b["Upper bound"]).toBe(a["Upper bound"]);
+  });
+
+  it("enforces a minimum exposure-window width (keeps the pre-arrival label off arrival)", () => {
+    setScenario({ exp: { start: -2, end: -1 } }); // 1 day — too short
+    clampScenario();
+    expect(scenario.exp.end - scenario.exp.start).toBeGreaterThanOrEqual(MIN_EXP_W);
+    expect(scenario.exp.end).toBe(-1); // end preserved; start pushed back
+  });
+
+  it("onward-transmission reduction is parameter-only (does NOT change the detection figure)", () => {
+    setScenario({ exp: { start: -10, end: -2 }, am: { on: true, start: 0, end: 16, reduction: 0 }, expRisk: 0.01, ci: 0.95 });
+    const none = undetectedAt(16);
+    setScenario({ am: { on: true, start: 0, end: 16, reduction: 80 } });
+    const heavy = undetectedAt(16);
+    expect(heavy["Median"]).toBe(none["Median"]);
+    expect(heavy["Lower bound"]).toBe(none["Lower bound"]);
+    expect(heavy["Upper bound"]).toBe(none["Upper bound"]);
   });
 
   it("the live CI flows through (narrower CI ⇒ tighter bounds)", () => {

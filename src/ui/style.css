@@ -58,6 +58,10 @@ tr.tl-maxdur td { background:#eef7f1; }
 /* active-monitoring gate: switch stays live, the body greys out + locks when off */
 .amgate { display:inline-flex; align-items:center; gap:.4rem; font-weight:600; margin-bottom:.7rem; cursor:pointer; }
 .locked { opacity:.45; pointer-events:none; }
+.hint-sm { font-size:.72rem; color:var(--muted); margin:.35rem 0 0; }
+/* onward-transmission reduction slider in the timeline post-arrival group */
+.tl2-redux { display:flex; align-items:center; gap:.3rem; color:var(--muted); font-size:.78rem; }
+.tl2-redux input[type=range] { width:90px; }
 .tl-notes { margin-top:1rem; font-size:.85rem; }
 .tl-card { background:#f3f8fb; border:1px solid #cfe3ef; border-radius:8px; padding:.7rem .9rem; }
 .tl-card ul { margin:.4rem 0; padding-left:1.2rem; }

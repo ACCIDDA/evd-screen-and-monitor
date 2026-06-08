@@ -5,14 +5,14 @@
 // the validated undetected-per-10,000 figure for the monitoring window (the value at the
 // risk curve's MAX duration). The figure depends only on when the window CLOSES (am.end);
 // am.start cancels in the metric — so it's labelled by the end day. It reflects the
-// active-monitoring window only (testing / fever / quarantine are not in this number).
+// active-monitoring/quarantine window only (testing / fever are not in this number).
 //
 // Layout: control panel grouped by period (pre-arrival / arrival / post-arrival), each
 // group floating over its region of the timeline; draggable bars below the axis.
 
 import {
   scenario as state, notify, subscribe, undetectedAt, amDuration,
-  EXP_MIN, POST_MAX,
+  EXP_MIN, POST_MAX, MIN_EXP_W,
 } from "./scenario.js";
 
 const el = (id) => document.getElementById(id);
@@ -20,8 +20,8 @@ const el = (id) => document.getElementById(id);
 const MIN_POST = 10; // keep a little post-arrival timeline so that region always has room
 const LEFT_PAD = 16, RIGHT_PAD = 16;
 const AXIS_Y = 18, BAND_H = 16, LANE_GAP = 10;
-const COL = { test: "#d95f02", fever: "#e7298a", am: "#1b9e77", quarantine: "#7570b3", exp: "#9e2a2b" };
-const LABEL = { exp: "Exposure", am: "Active monitoring", q: "Quarantine" };
+const COL = { test: "#d95f02", fever: "#e7298a", am: "#1b9e77", exp: "#9e2a2b" };
+const LABEL = { exp: "Exposure", am: "Active monitoring / quarantine" };
 
 // Infection-risk options mirror the φ levels from the Undetected-infections tab (#r_phi).
 function phiOptions() {
@@ -43,15 +43,12 @@ function edgesFor(key) { return key === "am" ? ["bot"] : ["top", "bot"]; }
 function computeGeom() {
   state.exp.start = clamp(state.exp.start, EXP_MIN, 0);
   state.exp.end = clamp(state.exp.end, state.exp.start, 0);
-  for (const k of ["am", "q"]) {
-    state[k].start = clamp(state[k].start, 0, POST_MAX);
-    state[k].end = clamp(state[k].end, state[k].start, POST_MAX);
-  }
+  state.am.start = clamp(state.am.start, 0, POST_MAX);
+  state.am.end = clamp(state.am.end, state.am.start, POST_MAX);
   const width = Math.max((el("tl2") && el("tl2").clientWidth) || 0, 360) || 820;
   const contentMin = state.exp.start;
   let contentMax = MIN_POST;
   if (state.am.on) contentMax = Math.max(contentMax, state.am.end);
-  if (state.q.on) contentMax = Math.max(contentMax, state.q.end);
 
   const contentSpan = Math.max(contentMax - contentMin, 1);
   const buffer = Math.max(2, Math.round(0.1 * contentSpan));
@@ -62,7 +59,7 @@ function computeGeom() {
 
   const dotY = { test: AXIS_Y + 14, fever: AXIS_Y + 28 };
   const barsTop = AXIS_Y + 40;
-  const bars = ["exp", ...(state.am.on ? ["am"] : []), ...(state.q.on ? ["q"] : [])];
+  const bars = ["exp", ...(state.am.on ? ["am"] : [])];
   let y = barsTop;
   const bandY = {};
   for (const k of bars) { bandY[k] = y; y += BAND_H + LANE_GAP; }
@@ -74,8 +71,7 @@ function scenarioView() {
   return {
     exp: { start: state.exp.start, end: state.exp.end }, expRisk: state.expRisk,
     test: state.test, fever: state.fever,
-    am: { on: state.am.on, start: state.am.start, end: state.am.end },
-    quarantine: { on: state.q.on, start: state.q.start, end: state.q.end },
+    am: { on: state.am.on, start: state.am.start, end: state.am.end, reduction: state.am.reduction },
   };
 }
 
@@ -84,8 +80,7 @@ function ariaSummary() {
   const parts = [`Horizontal traveler timeline. Exposure window ${-state.exp.start} to ${-state.exp.end} days before arrival, infection risk ${riskLabel(state.expRisk)}.`];
   if (state.test) parts.push("Testing at arrival.");
   if (state.fever) parts.push("Fever screening at arrival.");
-  if (state.am.on) parts.push(`Active monitoring day ${state.am.start} to ${state.am.end}.`);
-  if (state.q.on) parts.push(`Quarantine day ${state.q.start} to ${state.q.end}.`);
+  if (state.am.on) parts.push(`Active monitoring / quarantine for ${state.am.end - state.am.start} days.`);
   return parts.join(" ");
 }
 
@@ -130,7 +125,7 @@ function buildSVG(g) {
   if (state.test) p.push(`<circle cx="${x0}" cy="${g.dotY.test}" r="5.5" fill="${COL.test}" stroke="#fff" stroke-width="1.5"/>`);
   if (state.fever) p.push(`<circle cx="${x0}" cy="${g.dotY.fever}" r="5.5" fill="${COL.fever}" stroke="#fff" stroke-width="1.5"/>`);
   for (const key of g.bars) {
-    p.push(bandMarkup(key, COL[key === "q" ? "quarantine" : key], g));
+    p.push(bandMarkup(key, COL[key], g));
     for (const edge of edgesFor(key)) p.push(handleMarkup(key, edge, g));
   }
   return `<svg id="tl2svg" class="tl2-svg" width="${g.width}" height="${g.H}" viewBox="0 0 ${g.width} ${g.H}" ` +
@@ -156,16 +151,15 @@ function renderResult() {
     `<div class="tl-result"><span class="tl-result-head">Undetected symptomatic infections per 10,000 monitored:</span> ` +
     `<strong class="tl-result-num">${r["Median"].toFixed(2)}</strong> ` +
     `<span class="tl-result-ci">(${r["Lower bound"].toFixed(2)}–${r["Upper bound"].toFixed(2)}, ${Math.round(state.ci * 100)}% CI)</span>` +
-    `<div class="tl-result-note">for ${state.am.end - state.am.start} days of active monitoring · infection risk ${esc(riskLabel(state.expRisk))}. ` +
-    `Reflects the active-monitoring window only — testing, fever screening and quarantine are not modeled in this figure.</div></div>`;
+    `<div class="tl-result-note">for ${state.am.end - state.am.start} days of active monitoring / quarantine · infection risk ${esc(riskLabel(state.expRisk))}. ` +
+    `Detection figure only — it depends on monitoring duration and exposure; testing and fever screening are not reflected here.</div></div>`;
 }
 
 function buildNotes(sc) {
   const items = [];
   if (sc.test) items.push("Testing at arrival (day 0)");
   if (sc.fever) items.push("Fever screening at arrival (day 0)");
-  if (sc.am.on) items.push(`Active monitoring, day ${sc.am.start}–${sc.am.end} (${sc.am.end - sc.am.start} days)`);
-  if (sc.quarantine.on) items.push(`Quarantine, day ${sc.quarantine.start}–${sc.quarantine.end} (${sc.quarantine.end - sc.quarantine.start} days)`);
+  if (sc.am.on) items.push(`Active monitoring / quarantine, ${sc.am.end - sc.am.start} days`);
   const head = `<div class="tl-card"><strong>Scenario</strong>` +
     `<p class="tl2-exp-note">Exposure window: ${-sc.exp.start}–${-sc.exp.end} days before arrival · infection risk ${esc(riskLabel(sc.expRisk))}.</p>`;
   if (!items.length) {
@@ -180,8 +174,9 @@ function edgeVal(key, edge) { const s = segOf(key); return edge === "top" ? s.st
 function setEdge(key, edge, day) {
   day = Math.round(day);
   if (key === "exp") {
-    if (edge === "top") state.exp.start = clamp(day, EXP_MIN, state.exp.end);
-    else state.exp.end = clamp(day, state.exp.start, 0);
+    // keep the window at least MIN_EXP_W wide so its label stays clear of arrival
+    if (edge === "top") state.exp.start = clamp(day, EXP_MIN, state.exp.end - MIN_EXP_W);
+    else state.exp.end = clamp(day, state.exp.start + MIN_EXP_W, 0);
     return;
   }
   const seg = state[key];
@@ -225,13 +220,18 @@ function attachHandle(key, edge) {
 
 // ───────────────────────── render ─────────────────────────
 function positionGroups(g) {
-  const place = (id, dayCenter) => {
-    const e = el(id);
-    if (e) e.style.left = `${clamp(Math.round(g.sx(dayCenter)), 55, g.width - 55)}px`;
-  };
-  place("grp_pre", (state.exp.start + state.exp.end) / 2);
-  place("grp_arrival", 0);
-  place("grp_post", g.dMax / 2);
+  const W = g.width;
+  const cx = (d) => clamp(Math.round(g.sx(d)), 55, W - 55);
+  const halfW = (id) => { const e = el(id); return (e && e.offsetWidth ? e.offsetWidth : 180) / 2; };
+  const gap = 8;
+  const arrivalX = cx(0);
+  // pre group: keep its right edge clear of arrival's left edge (groups are translateX(-50%))
+  let preX = Math.min(cx((state.exp.start + state.exp.end) / 2), arrivalX - halfW("grp_arrival") - halfW("grp_pre") - gap);
+  // post group: keep its left edge clear of arrival's right edge
+  let postX = Math.max(cx(g.dMax / 2), arrivalX + halfW("grp_arrival") + halfW("grp_post") + gap);
+  el("grp_pre").style.left = `${Math.max(Math.round(preX), 2)}px`;
+  el("grp_arrival").style.left = `${arrivalX}px`;
+  el("grp_post").style.left = `${Math.min(Math.round(postX), W - 2)}px`;
 }
 
 function renderTimeline() {
@@ -239,15 +239,13 @@ function renderTimeline() {
   el("tl2").innerHTML = buildSVG(geom);
   geom.svgEl = el("tl2svg");
   for (const edge of edgesFor("exp")) attachHandle("exp", edge);
-  for (const k of ["am", "q"]) if (state[k].on) for (const edge of edgesFor(k)) attachHandle(k, edge);
+  if (state.am.on) for (const edge of edgesFor("am")) attachHandle("am", edge);
   el("ro_exp").textContent = roText("exp");
   el("ro_am").textContent = roText("am");
-  el("ro_q").textContent = roText("q");
-  el("sel_exprisk").value = String(state.expRisk); // reflect store (may have changed on the risk tab)
-  el("cb_test").checked = state.test;              // reflect store (e.g. AM toggled from the Undetected tab)
+  el("sel_exprisk").value = String(state.expRisk); // reflect store (may have changed on the AM tab)
+  el("cb_test").checked = state.test;              // reflect store (e.g. AM toggled from the AM tab)
   el("cb_fever").checked = state.fever;
   el("cb_am").checked = state.am.on;
-  el("cb_q").checked = state.q.on;
   positionGroups(geom);
   renderResult();
   el("tlNotes").innerHTML = buildNotes(scenarioView());
@@ -262,7 +260,7 @@ export function initTimeline() {
   sel.value = String(state.expRisk);
   sel.addEventListener("change", () => { state.expRisk = +sel.value; notify("timeline"); });
   for (const k of ["test", "fever"]) el(`cb_${k}`).addEventListener("change", (e) => { state[k] = e.target.checked; notify("timeline"); });
-  for (const k of ["am", "q"]) el(`cb_${k}`).addEventListener("change", (e) => { state[k].on = e.target.checked; notify("timeline"); });
+  el("cb_am").addEventListener("change", (e) => { state.am.on = e.target.checked; notify("timeline"); });
 
   subscribe(renderTimeline);
   window.addEventListener("resize", renderTimeline);

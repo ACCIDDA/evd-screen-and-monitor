@@ -16,7 +16,7 @@
   <nav class="tabs">
     <button class="tab active" data-tab="timeline">Intervention timeline</button>
     <button class="tab" data-tab="incub">Incubation-period estimate</button>
-    <button class="tab" data-tab="risk">Undetected infections</button>
+    <button class="tab" data-tab="risk">Active monitoring</button>
     <button class="tab" data-tab="cost">Cost of active monitoring</button>
   </nav>
 
@@ -56,9 +56,14 @@
           <div class="row"><label>high</label><input type="range" id="r_u_hi" min="0" max="30" value="5"><span class="v" id="r_u_hi_v"></span></div>
         </fieldset>
         <fieldset>
-          <legend>Active-monitoring duration (days)</legend>
+          <legend>Monitoring / quarantine duration (days)</legend>
           <div class="row"><label>from</label><input type="range" id="r_dur_lo" min="0" max="100" value="1"><span class="v" id="r_dur_lo_v"></span></div>
           <div class="row"><label>to</label><input type="range" id="r_dur_hi" min="0" max="100" value="28"><span class="v" id="r_dur_hi_v"></span></div>
+        </fieldset>
+        <fieldset>
+          <legend>Reduction in onward transmission</legend>
+          <div class="row"><input type="range" id="r_redux" min="0" max="100" value="0"><span class="v" id="r_redux_v"></span>%</div>
+          <p class="hint-sm">0% = active monitoring · 100% = strict quarantine. Recorded for the scenario; it does not change the detection figure below (that is a later modelling step).</p>
         </fieldset>
         <fieldset>
           <legend>Credible-interval width</legend>
@@ -120,8 +125,7 @@
       </div>
       <div class="tl2-group" id="grp_post">
         <div class="tl2-gh">Post-arrival</div>
-        <label class="tl2-ctl"><span class="tl2-sw" style="background:#1b9e77"></span><input type="checkbox" id="cb_am"> Active monitoring <span class="tl2-ro" id="ro_am"></span></label>
-        <label class="tl2-ctl"><span class="tl2-sw" style="background:#7570b3"></span><input type="checkbox" id="cb_q"> Quarantine <span class="tl2-ro" id="ro_q"></span></label>
+        <label class="tl2-ctl"><span class="tl2-sw" style="background:#1b9e77"></span><input type="checkbox" id="cb_am"> Active monitoring / quarantine <span class="tl2-ro" id="ro_am"></span></label>
       </div>
     </div>
     <div class="tl2" id="tl2"></div>
