@@ -103,8 +103,24 @@
 
   <!-- TAB 4: intervention timeline (Phase 2a — scenario-builder shell, no outcomes yet) -->
   <section class="panel" id="panel-timeline">
-    <div class="tl2-scenario">
-      <p class="tl2-hint">Toggle interventions at right. Drag a band's top or bottom edge (or focus it and use ↑/↓) to set its dates. Dragging the exposure window's <strong>beginning</strong> earlier extends the timeline back.</p>
+    <p class="tl2-hint">Check interventions to place them on the timeline; drag a bar's left/right edge (or focus it and use ←/→) to set its dates.</p>
+    <!-- control panel ABOVE the timeline, grouped by period; swatch colors mirror COL in timeline.js -->
+    <div class="tl2-top" id="tl2top">
+      <div class="tl2-group" id="grp_pre">
+        <div class="tl2-gh">Pre-arrival</div>
+        <span class="tl2-lbl"><span class="tl2-sw" style="background:#9e2a2b"></span>Exposure window <span class="tl2-ro" id="ro_exp"></span></span>
+        <span class="tl2-risk"><label for="sel_exprisk">infection risk</label> <select id="sel_exprisk"></select></span>
+      </div>
+      <div class="tl2-group" id="grp_arrival">
+        <div class="tl2-gh">Arrival</div>
+        <label class="tl2-ctl"><span class="tl2-sw" style="background:#d95f02"></span><input type="checkbox" id="cb_test"> Testing</label>
+        <label class="tl2-ctl"><span class="tl2-sw" style="background:#e7298a"></span><input type="checkbox" id="cb_fever"> Fever screening</label>
+      </div>
+      <div class="tl2-group" id="grp_post">
+        <div class="tl2-gh">Post-arrival</div>
+        <label class="tl2-ctl"><span class="tl2-sw" style="background:#1b9e77"></span><input type="checkbox" id="cb_am"> Active monitoring <span class="tl2-ro" id="ro_am"></span></label>
+        <label class="tl2-ctl"><span class="tl2-sw" style="background:#7570b3"></span><input type="checkbox" id="cb_q"> Quarantine <span class="tl2-ro" id="ro_q"></span></label>
+      </div>
     </div>
     <div class="tl2" id="tl2"></div>
     <div id="tlNotes" class="tl-notes"></div>
