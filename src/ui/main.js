@@ -73,7 +73,8 @@ function renderRisk() {
   const on = scenario.am.on;
   $("r_am_on").checked = on;
   $("riskBody").classList.toggle("locked", !on);
-  ["r_phi", "r_u_lo", "r_u_hi", "r_dur_lo", "r_dur_hi", "r_ci", "r_redux"].forEach((id) => { $(id).disabled = !on; });
+  ["r_phi", "r_u_lo", "r_u_hi", "r_dur_lo", "r_dur_hi", "r_ci", "r_redux",
+   "c_sec", "c_cpc_lo", "c_cpc_hi", "c_cpd_lo", "c_cpd_hi", "c_fp_lo", "c_fp_hi", "c_haz"].forEach((id) => { $(id).disabled = !on; });
   $("riskBanner").innerHTML = on ? "" :
     `<p class="banner">Active monitoring is not implemented — these settings are locked. Check “Implement active monitoring” (here or on the timeline) to edit. Figures below are illustrative.</p>`;
 
@@ -116,11 +117,12 @@ function drawRiskPlot(res, ci, dHi) {
   }, NOBAR);
 }
 
-// ───────────────────────── Tab: cost ─────────────────────────
-function drawCost() {
+// ───────────────────────── Cost (same tab; shares φ via the store) ─────────────────────────
+// Uses the single shared φ (scenario.expRisk), so the cost figure stays consistent with the
+// undetected figure; the duration the AM bar ends at is marked, as on the undetected plot.
+function renderCost() {
+  if (!panelActive("risk")) return; // hidden -> skip Plotly; redrawn on tab show
   const t0 = performance.now();
-  const phis = [...document.querySelectorAll('input[name="c_phi"]:checked')].map((e) => +e.value).sort((a, b) => b - a);
-  if (!phis.length) { Plotly.purge("costPlot"); $("costTiming").textContent = "select at least one φ"; return; }
   const params = {
     secondaryCases: +val("c_sec"),
     costPerCase: [+val("c_cpc_lo"), +val("c_cpc_hi")],
@@ -128,29 +130,23 @@ function drawCost() {
     costFalsePos: [+val("c_fp_lo"), +val("c_fp_hi")],
     hazardDenom: +val("c_haz"),
   };
-  const out = computeCosts({ samples: POST, phis, params });
-  const traces = [];
-  out.series.forEach((s, i) => {
-    const color = COLORS[i % COLORS.length];
-    traces.push({
-      x: s.xs.concat([...s.xs].reverse()), y: s.lo.concat([...s.hi].reverse()),
-      fill: "toself", fillcolor: hexA(color, 0.7), line: { width: 0 }, hoverinfo: "skip",
-      name: s.label, legendgroup: s.label,
-    });
-    const o = out.optima[i];
-    traces.push({
-      x: [o.durDays], y: [o.minCost], mode: "markers+text", marker: { color, size: 9 },
-      text: [`${Math.round(o.durDays)}d`], textposition: "top center",
-      legendgroup: s.label, showlegend: false,
-      hovertemplate: `φ=${s.label}<br>optimal ${Math.round(o.durDays)} d<br>$${Math.round(o.minCost).toLocaleString()}<extra></extra>`,
-    });
-  });
-  Plotly.react("costPlot", traces, {
-    title: "Model-based cost range for monitoring 100 individuals",
-    xaxis: { title: "duration of active monitoring (days)", range: [5, 43] },
-    yaxis: { title: "cost range (100 individuals)", type: "log", tickprefix: "$", tickformat: "," },
-    legend: { x: 0.99, y: 0.99, xanchor: "right", yanchor: "top", title: { text: "Pr(symptoms)" } },
-    margin: { t: 40 },
+  const out = computeCosts({ samples: POST, phis: [scenario.expRisk], params });
+  const dHi = amDuration(), s = out.series[0], o = out.optima[0], color = COLORS[2];
+  // y-axis: always floor at $1,000, ticks every decade up to the next power of 10 above the data
+  const yTop = Math.max(4, Math.ceil(Math.log10(Math.max(...s.hi))));
+  Plotly.react("costPlot", [
+    { x: s.xs.concat([...s.xs].reverse()), y: s.lo.concat([...s.hi].reverse()),
+      fill: "toself", fillcolor: hexA(color, 0.45), line: { width: 0 }, hoverinfo: "skip", showlegend: false },
+    { x: [o.durDays], y: [o.minCost], mode: "markers+text", marker: { color, size: 9 },
+      text: [`opt ${Math.round(o.durDays)}d`], textposition: "top center", showlegend: false,
+      hovertemplate: `optimal ${Math.round(o.durDays)} d<br>$${Math.round(o.minCost).toLocaleString()}<extra></extra>` },
+  ], {
+    title: `Cost per 100 monitored · ${s.label} symptomatic`,
+    xaxis: { title: "duration of active monitoring (days)", range: [5, Math.max(43, dHi + 3)] },
+    yaxis: { title: "cost range (100 individuals)", type: "log", range: [3, yTop], dtick: 1, tickprefix: "$", tickformat: "," },
+    margin: { t: 40 }, showlegend: false,
+    shapes: [{ type: "line", x0: dHi, x1: dHi, yref: "paper", y0: 0, y1: 1, line: { color: "#999", width: 1, dash: "dot" } }],
+    annotations: [{ x: dHi, yref: "paper", y: 1, yanchor: "bottom", text: "monitoring ends", showarrow: false, font: { size: 10, color: "#999" } }],
   }, NOBAR);
   $("costTiming").textContent = `computed in ${(performance.now() - t0).toFixed(1)} ms`;
 }
@@ -167,8 +163,7 @@ function syncLabels() {
 
 function drawForTab(name) {
   if (name === "incub") drawIncubation();
-  else if (name === "risk") renderRisk();
-  else if (name === "cost") drawCost();
+  else if (name === "risk") { renderRisk(); renderCost(); }
 }
 
 function init() {
@@ -192,22 +187,20 @@ function init() {
   $("r_ci").addEventListener("input", () => { scenario.ci = +val("r_ci"); notify("risk"); });
   $("r_redux").addEventListener("input", () => { scenario.am.reduction = +val("r_redux"); notify("risk"); }); // parameter only
 
-
-
-  // cost controls (not linked)
-  document.querySelectorAll('input[name="c_phi"]').forEach((e) => e.addEventListener("change", drawCost));
+  // cost controls — cost-specific params only (φ is shared via the store); redraw the cost figure
   ["c_sec", "c_cpc_lo", "c_cpc_hi", "c_cpd_lo", "c_cpd_hi", "c_fp_lo", "c_fp_hi", "c_haz"].forEach((id) =>
-    $(id).addEventListener("input", () => { syncLabels(); drawCost(); }));
+    $(id).addEventListener("input", () => { syncLabels(); renderCost(); }));
 
   $("provenance").textContent =
     `Data: ${META.object} (activeMonitr ${META.activeMonitrVersion}). ${META.citation}`;
 
-  subscribe(renderRisk);                 // keep the Undetected tab in sync with the timeline
+  subscribe(renderRisk);                 // undetected figure — in sync with the timeline
+  subscribe(renderCost);                 // cost figure — shares φ via the store
   syncLabels();
   drawIncubation();
-  drawCost();
   initTimeline();                        // landing tab; also triggers the first renderRisk via the store
   renderRisk();
+  renderCost();
 }
 
 window.addEventListener("DOMContentLoaded", init);

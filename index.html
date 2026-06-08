@@ -15,22 +15,50 @@
 
   <nav class="tabs">
     <button class="tab active" data-tab="timeline">Intervention timeline</button>
-    <button class="tab" data-tab="incub">Incubation-period estimate</button>
+    <button class="tab" data-tab="incub">Disease parameters</button>
     <button class="tab" data-tab="risk">Active monitoring</button>
-    <button class="tab" data-tab="cost">Cost of active monitoring</button>
   </nav>
 
-  <!-- TAB 1: incubation -->
+  <!-- TAB 1: disease parameters (incubation = fitted/validated; rest = placeholders) -->
   <section class="panel" id="panel-incub">
-    <div class="layout">
-      <div class="prose">
-        <h3>Incubation period</h3>
-        <p>The point shows the estimated <strong>median</strong> and <strong>95th-percentile</strong>
-          incubation period for Ebola; the shaded region is the KDE credible region over the posterior
-          (median × 95th-percentile space).</p>
-        <p id="incubReadout" class="readout"></p>
+    <p class="params-intro">Disease parameters for the modelled pathogen (Ebola). The incubation period is
+      fitted from outbreak data and validated against the R model. The remaining parameters are
+      <strong>placeholders</strong> for the onward-transmission modelling step — shown to map out the
+      interface; they are not yet used in any calculation.</p>
+
+    <section class="param-card">
+      <h3>Incubation period <span class="param-badge ok">fitted</span></h3>
+      <div class="layout">
+        <div class="prose">
+          <p>The point shows the estimated <strong>median</strong> and <strong>95th-percentile</strong>
+            incubation period for Ebola; the shaded region is the KDE credible region over the posterior
+            (median × 95th-percentile space).</p>
+          <p id="incubReadout" class="readout"></p>
+        </div>
+        <div><div class="plot" id="incubPlot"></div></div>
       </div>
-      <div><div class="plot" id="incubPlot"></div></div>
+    </section>
+
+    <div class="param-grid">
+      <section class="param-card">
+        <h3>Reproductive number (R₀) <span class="param-badge">placeholder</span></h3>
+        <p class="param-desc">Average secondary cases per infectious individual; sets transmission intensity for the onward-transmission step.</p>
+        <label class="param-input">R₀ <input type="number" value="2.0" step="0.1" min="0" disabled></label>
+        <p class="param-note">Illustrative — not yet used in any calculation.</p>
+      </section>
+      <section class="param-card">
+        <h3>Infectious period distribution <span class="param-badge">placeholder</span></h3>
+        <p class="param-desc">How long an individual is infectious after onset; shapes how much a missed case can transmit.</p>
+        <label class="param-input">mean (days) <input type="number" value="9" min="0" disabled></label>
+        <label class="param-input">shape <select disabled><option>gamma</option></select></label>
+        <p class="param-note">Illustrative — not yet used in any calculation.</p>
+      </section>
+      <section class="param-card">
+        <h3>Serial interval <span class="param-badge">placeholder</span></h3>
+        <p class="param-desc">Time between symptom onset in successive cases in a transmission chain.</p>
+        <label class="param-input">mean (days) <input type="number" value="15" min="0" disabled></label>
+        <p class="param-note">Illustrative — not yet used in any calculation.</p>
+      </section>
     </div>
   </section>
 
@@ -69,29 +97,6 @@
           <legend>Credible-interval width</legend>
           <div class="row"><input type="range" id="r_ci" min="0.5" max="1" step="0.01" value="0.95"><span class="v" id="r_ci_v"></span></div>
         </fieldset>
-      </form>
-      <div class="twocol">
-        <div><div class="plot" id="riskPlot"></div><p class="timing" id="riskTiming"></p></div>
-        <div>
-          <strong class="tbl-title">Undetected symptomatic infections<br>per 10,000 monitored</strong>
-          <div class="tablewrap"><table id="riskTable"></table></div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- TAB 3: cost -->
-  <section class="panel" id="panel-cost">
-    <div class="layout">
-      <form class="controls">
-        <fieldset>
-          <legend>Pr(symptoms)</legend>
-          <label class="opt"><input type="checkbox" name="c_phi" value="1"> 1/1</label>
-          <label class="opt"><input type="checkbox" name="c_phi" value="0.1"> 1/10</label>
-          <label class="opt"><input type="checkbox" name="c_phi" value="0.01"> 1/100</label>
-          <label class="opt"><input type="checkbox" name="c_phi" value="0.001" checked> 1/1,000</label>
-          <label class="opt"><input type="checkbox" name="c_phi" value="0.0001" checked> 1/10,000</label>
-        </fieldset>
         <fieldset>
           <legend>Cost assumptions</legend>
           <div class="row"><label>Secondary cases</label><input type="range" id="c_sec" min="0" max="25" value="4"><span class="v" id="c_sec_v"></span></div>
@@ -104,7 +109,19 @@
           <div class="row"><label>Hazard denom</label><input type="range" id="c_haz" min="10" max="10000" step="10" value="1000"><span class="v" id="c_haz_v"></span></div>
         </fieldset>
       </form>
-      <div><div class="plot" id="costPlot"></div><p class="timing" id="costTiming"></p></div>
+      <div class="results">
+        <div class="twocol">
+          <div><div class="plot" id="riskPlot"></div><p class="timing" id="riskTiming"></p></div>
+          <div>
+            <strong class="tbl-title">Undetected symptomatic infections<br>per 10,000 monitored</strong>
+            <div class="tablewrap"><table id="riskTable"></table></div>
+          </div>
+        </div>
+        <div class="costblock">
+          <strong class="tbl-title">Cost of active monitoring (per 100 individuals)</strong>
+          <div class="plot" id="costPlot"></div><p class="timing" id="costTiming"></p>
+        </div>
+      </div>
     </div>
   </section>
 
