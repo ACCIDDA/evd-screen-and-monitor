@@ -1,19 +1,19 @@
-// main.js — dashboard wiring. All numbers come from the verified pure core
-// (src/core/*), which is asserted against R fixtures. This file is just DOM + Plotly.
+// main.js — dashboard wiring. All numbers come from the verified pure core (src/core/*),
+// asserted against R fixtures. This file is DOM + Plotly only.
+//
+// The Undetected-infections tab is LINKED two-way to the intervention timeline via the
+// shared scenario store (scenario.js): φ, the exposure window (→ u bounds) and the active-
+// monitoring duration (= the curve's max duration) are shared. Its sliders are VIEWS of the
+// store, written via plain .value (no input event) so there are no sync loops.
 
 import Plotly from "plotly.js-dist-min";
-import posteriorFile from "../data/ebola_posterior_small.json";
-import kdeFile from "../data/ebola_kde_polygon.json";
-
 import { incubationPoint } from "../core/incubation.js";
 import { computeCosts } from "../core/cost.js";
 import { computeRisk, riskTable, riskAxis } from "../core/risk.js";
-import { baseUniforms, scaleU } from "../core/rng.js";
+import { scaleU } from "../core/rng.js";
+import { POST, KDE, BASE_U, META } from "./data.js";
+import { scenario, notify, subscribe, uBounds, amDuration } from "./scenario.js";
 import { initTimeline } from "./timeline.js";
-
-const POST = posteriorFile.data.columns;
-const KDE = kdeFile.data;
-const BASE_U = baseUniforms(POST.shape.length); // fixed seeded base sample for u
 
 const COLORS = ["#1b9e77", "#d95f02", "#7570b3", "#0072B2", "#e7298a"];
 const $ = (id) => document.getElementById(id);
@@ -23,8 +23,9 @@ const hexA = (hex, a) => {
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 };
 const NOBAR = { displayModeBar: false, responsive: true };
+const panelActive = (id) => $("panel-" + id).classList.contains("active");
 
-// ───────────────────────── Tab 1: incubation ─────────────────────────
+// ───────────────────────── Tab: incubation ─────────────────────────
 function drawIncubation() {
   const pt = incubationPoint(POST);
   const traces = KDE.polygons.map((poly, i) => ({
@@ -47,20 +48,52 @@ function drawIncubation() {
     `median = ${pt.median.toFixed(2)} days · 95th percentile = ${pt.p95.toFixed(2)} days`;
 }
 
-// ───────────────────────── Tab 2: undetected infections ─────────────────────────
-function drawRisk() {
+// ───────────────────────── Tab: undetected infections (linked to the timeline) ─────────────────────────
+function renderRisk() {
   const t0 = performance.now();
-  const phi = +val("r_phi"), ci = +val("r_ci");
-  const uLo = +val("r_u_lo"), uHi = +val("r_u_hi");
-  const durLo = +val("r_dur_lo"), durHi = +val("r_dur_hi");
-  const durations = [];
-  for (let d = durLo; d <= durHi; d++) durations.push(d);
-  const u = scaleU(BASE_U, uLo, uHi);
+  const { uLo, uHi } = uBounds();
+  const dHi = amDuration();                 // curve max = active-monitoring duration
+  // reflect the store into the linked controls (plain .value => no input event => no loop)
+  $("r_phi").value = String(scenario.expRisk);
+  $("r_u_lo").value = uLo; $("r_u_hi").value = uHi;
+  $("r_dur_hi").value = dHi;
+  if (+val("r_dur_lo") > dHi) $("r_dur_lo").value = Math.max(0, dHi);
+  $("r_ci").value = scenario.ci;
+  syncLabels();
 
+  const phi = scenario.expRisk, ci = scenario.ci;
+  const durLo = Math.max(0, Math.min(+val("r_dur_lo"), dHi));
+  const durations = [];
+  for (let d = durLo; d <= dHi; d++) durations.push(d);
+  const u = scaleU(BASE_U, uLo, uHi);
   const res = computeRisk({ samples: POST, u, durations, phi, ci });
+
+  // gate: when active monitoring isn't implemented, lock + grey the rest of the page
+  const on = scenario.am.on;
+  $("r_am_on").checked = on;
+  $("riskBody").classList.toggle("locked", !on);
+  ["r_phi", "r_u_lo", "r_u_hi", "r_dur_lo", "r_dur_hi", "r_ci"].forEach((id) => { $(id).disabled = !on; });
+  $("riskBanner").innerHTML = on ? "" :
+    `<p class="banner">Active monitoring is not implemented — these settings are locked. Check “Implement active monitoring” (here or on the timeline) to edit. Figures below are illustrative.</p>`;
+
+  // table: bold the max-duration row (the value surfaced on the timeline)
+  const rows = riskTable(res);
+  $("riskTable").innerHTML =
+    "<thead><tr><th>Duration (days)</th><th>Lower</th><th>Median</th><th>Upper</th></tr></thead><tbody>" +
+    rows.map((r) => {
+      const isMax = r["Duration, in days"] === dHi;
+      const med = r["Median"].toFixed(2);
+      return `<tr${isMax ? ' class="tl-maxdur"' : ""}><td>${r["Duration, in days"]}</td><td>${r["Lower bound"].toFixed(2)}</td>` +
+        `<td>${isMax ? `<strong>${med}</strong>` : med}</td><td>${r["Upper bound"].toFixed(2)}</td></tr>`;
+    }).join("") + "</tbody>";
+
+  if (panelActive("risk")) drawRiskPlot(res, ci, dHi);
+  $("riskTiming").textContent = `computed in ${(performance.now() - t0).toFixed(1)} ms (over ${POST.shape.length} posterior draws)`;
+}
+
+function drawRiskPlot(res, ci, dHi) {
   const xs = res.rows.map((r) => r.d), col = COLORS[3];
   const ax = riskAxis(res);
-
   Plotly.react("riskPlot", [
     {
       x: xs.concat([...xs].reverse()),
@@ -77,18 +110,12 @@ function drawRisk() {
       tickvals: ax.breaks, ticktext: ax.labels, range: [Math.log10(ax.pMin), Math.log10(ax.pMax)],
     },
     margin: { t: 40 }, showlegend: false,
+    shapes: [{ type: "line", x0: dHi, x1: dHi, yref: "paper", y0: 0, y1: 1, line: { color: "#999", width: 1, dash: "dot" } }],
+    annotations: [{ x: dHi, yref: "paper", y: 1, yanchor: "bottom", text: "monitoring ends", showarrow: false, font: { size: 10, color: "#999" } }],
   }, NOBAR);
-
-  const rows = riskTable(res);
-  $("riskTable").innerHTML =
-    "<thead><tr><th>Duration (days)</th><th>Lower</th><th>Median</th><th>Upper</th></tr></thead><tbody>" +
-    rows.map((r) => `<tr><td>${r["Duration, in days"]}</td><td>${r["Lower bound"].toFixed(2)}</td>` +
-      `<td>${r["Median"].toFixed(2)}</td><td>${r["Upper bound"].toFixed(2)}</td></tr>`).join("") +
-    "</tbody>";
-  $("riskTiming").textContent = `computed in ${(performance.now() - t0).toFixed(1)} ms (over ${POST.shape.length} posterior draws)`;
 }
 
-// ───────────────────────── Tab 3: cost ─────────────────────────
+// ───────────────────────── Tab: cost ─────────────────────────
 function drawCost() {
   const t0 = performance.now();
   const phis = [...document.querySelectorAll('input[name="c_phi"]:checked')].map((e) => +e.value).sort((a, b) => b - a);
@@ -137,6 +164,12 @@ function syncLabels() {
   for (const [src, dst] of Object.entries(m)) if ($(dst)) $(dst).textContent = $(src).value;
 }
 
+function drawForTab(name) {
+  if (name === "incub") drawIncubation();
+  else if (name === "risk") renderRisk();
+  else if (name === "cost") drawCost();
+}
+
 function init() {
   // tabs
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
@@ -144,25 +177,33 @@ function init() {
     document.querySelectorAll(".panel").forEach((x) => x.classList.remove("active"));
     t.classList.add("active");
     $("panel-" + t.dataset.tab).classList.add("active");
+    drawForTab(t.dataset.tab);           // (re)draw now that the panel has real width
     window.dispatchEvent(new Event("resize"));
   }));
-  // risk controls
-  ["r_phi", "r_u_lo", "r_u_hi", "r_dur_lo", "r_dur_hi", "r_ci"].forEach((id) =>
-    $(id).addEventListener("input", () => { syncLabels(); drawRisk(); }));
-  // cost controls
+
+  // risk controls — write the shared store, then notify (sliders/select are views)
+  $("r_am_on").addEventListener("change", () => { scenario.am.on = $("r_am_on").checked; notify("risk"); });
+  $("r_phi").addEventListener("change", () => { scenario.expRisk = +val("r_phi"); notify("risk"); });
+  $("r_u_lo").addEventListener("input", () => { scenario.exp.end = scenario.am.start - +val("r_u_lo"); notify("risk"); });
+  $("r_u_hi").addEventListener("input", () => { scenario.exp.start = scenario.am.start - +val("r_u_hi"); notify("risk"); });
+  $("r_dur_hi").addEventListener("input", () => { scenario.am.end = scenario.am.start + +val("r_dur_hi"); notify("risk"); });
+  $("r_dur_lo").addEventListener("input", () => { syncLabels(); renderRisk(); }); // curve view-window (tab-local)
+  $("r_ci").addEventListener("input", () => { scenario.ci = +val("r_ci"); notify("risk"); });
+
+  // cost controls (not linked)
   document.querySelectorAll('input[name="c_phi"]').forEach((e) => e.addEventListener("change", drawCost));
   ["c_sec", "c_cpc_lo", "c_cpc_hi", "c_cpd_lo", "c_cpd_hi", "c_fp_lo", "c_fp_hi", "c_haz"].forEach((id) =>
     $(id).addEventListener("input", () => { syncLabels(); drawCost(); }));
 
   $("provenance").textContent =
-    `Data: ${posteriorFile.meta.object} (activeMonitr ${posteriorFile.meta.activeMonitrVersion}). ` +
-    `${posteriorFile.meta.citation}`;
+    `Data: ${META.object} (activeMonitr ${META.activeMonitrVersion}). ${META.citation}`;
 
+  subscribe(renderRisk);                 // keep the Undetected tab in sync with the timeline
   syncLabels();
   drawIncubation();
-  drawRisk();
   drawCost();
-  initTimeline();
+  initTimeline();                        // landing tab; also triggers the first renderRisk via the store
+  renderRisk();
 }
 
 window.addEventListener("DOMContentLoaded", init);

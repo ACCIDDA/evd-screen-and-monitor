@@ -45,6 +45,19 @@ footer { margin-top:1.5rem; padding-top:.8rem; border-top:1px solid var(--bd); c
 .tl2-svg [data-grip]:focus { outline:none; }
 .tl2-svg [data-grip]:focus .grip-line { stroke-width:4; stroke:var(--accent); }
 .tl2-exp-note { margin:.2rem 0 .4rem; }
+/* undetected-infections result shown on the timeline when active monitoring is selected */
+.tl-result { margin-top:.8rem; padding:.6rem .8rem; border:1px solid #cfe3ef; background:#f3f8fb; border-radius:8px; font-size:.9rem; }
+.tl-result-head { color:var(--ink); }
+.tl-result-num { font-size:1.15rem; color:var(--accent); }
+.tl-result-ci { color:var(--muted); }
+.tl-result-note { color:var(--muted); font-size:.78rem; margin-top:.3rem; }
+.tl-result-off { color:var(--muted); background:#fafafa; border-color:var(--bd); }
+/* linked-tab notice + highlighted max-duration row */
+.banner { margin:0 0 .8rem; padding:.5rem .7rem; border:1px solid #e6d6a8; background:#fdf6e3; border-radius:6px; font-size:.85rem; color:#6b5a1f; }
+tr.tl-maxdur td { background:#eef7f1; }
+/* active-monitoring gate: switch stays live, the body greys out + locks when off */
+.amgate { display:inline-flex; align-items:center; gap:.4rem; font-weight:600; margin-bottom:.7rem; cursor:pointer; }
+.locked { opacity:.45; pointer-events:none; }
 .tl-notes { margin-top:1rem; font-size:.85rem; }
 .tl-card { background:#f3f8fb; border:1px solid #cfe3ef; border-radius:8px; padding:.7rem .9rem; }
 .tl-card ul { margin:.4rem 0; padding-left:1.2rem; }
