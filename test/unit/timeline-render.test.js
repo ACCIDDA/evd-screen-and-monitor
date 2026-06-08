@@ -41,3 +41,23 @@ it("renders an SVG of sane dimensions without throwing", async () => {
   expect(h).toBeGreaterThan(40);
   expect(h).toBeLessThan(300);
 });
+
+it("draws the test-out marker only when active monitoring AND test-out are on", async () => {
+  const stub = installDom();
+  const { scenario } = await import("../../src/ui/scenario.js");
+  const { initTimeline } = await import("../../src/ui/timeline.js");
+  const MARK = /fill="#2c7fb8"/; // test-out colour
+  const svg = () => stub("tl2").innerHTML;
+
+  scenario.am.on = false; scenario.testOut = true;
+  initTimeline();
+  expect(MARK.test(svg())).toBe(false); // AM off → no marker even if test-out set
+
+  scenario.am.on = true; scenario.testOut = true;
+  initTimeline();
+  expect(MARK.test(svg())).toBe(true);  // AM on + test-out → marker
+
+  scenario.am.on = true; scenario.testOut = false;
+  initTimeline();
+  expect(MARK.test(svg())).toBe(false); // test-out off → no marker
+});

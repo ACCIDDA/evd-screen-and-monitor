@@ -151,14 +151,39 @@ function renderCost() {
   $("costTiming").textContent = `computed in ${(performance.now() - t0).toFixed(1)} ms`;
 }
 
+// ───────────────────────── dual-handle range sliders ─────────────────────────
+// Each .dr holds two overlapping <input type=range> presented as one slider; the two
+// inputs keep their ids/handlers, so the store wiring is unchanged.
+function updateDual(dr) {
+  const ins = [...dr.querySelectorAll('input[type="range"]')];
+  const min = +ins[0].min, max = +ins[0].max, span = max - min || 1;
+  const lo = Math.min(+ins[0].value, +ins[1].value), hi = Math.max(+ins[0].value, +ins[1].value);
+  const fill = dr.querySelector(".dr-fill");
+  fill.style.left = `${((lo - min) / span) * 100}%`;
+  fill.style.width = `${((hi - lo) / span) * 100}%`;
+  const v = dr.parentElement.querySelector(".dr-v");
+  if (v) v.textContent = `${lo} – ${hi}`;
+}
+function updateAllDuals() { document.querySelectorAll(".dr").forEach(updateDual); }
+function initDualRanges() {
+  // registered BEFORE the store/cost handlers so the clamp lands before they read the value
+  document.querySelectorAll(".dr").forEach((dr) => {
+    const ins = [...dr.querySelectorAll('input[type="range"]')];
+    const onInput = (e) => {
+      const [a, b] = ins;
+      if (+a.value > +b.value) { if (e.target === a) a.value = b.value; else b.value = a.value; }
+      updateDual(dr);
+    };
+    ins.forEach((i) => i.addEventListener("input", onInput));
+    updateDual(dr);
+  });
+}
+
 // ───────────────────────── wiring ─────────────────────────
 function syncLabels() {
-  const m = {
-    r_u_lo: "r_u_lo_v", r_u_hi: "r_u_hi_v", r_dur_lo: "r_dur_lo_v", r_dur_hi: "r_dur_hi_v", r_ci: "r_ci_v", r_redux: "r_redux_v",
-    c_sec: "c_sec_v", c_cpc_lo: "c_cpc_lo_v", c_cpc_hi: "c_cpc_hi_v", c_cpd_lo: "c_cpd_lo_v",
-    c_cpd_hi: "c_cpd_hi_v", c_fp_lo: "c_fp_lo_v", c_fp_hi: "c_fp_hi_v", c_haz: "c_haz_v",
-  };
+  const m = { r_ci: "r_ci_v", r_redux: "r_redux_v", c_sec: "c_sec_v", c_haz: "c_haz_v" };
   for (const [src, dst] of Object.entries(m)) if ($(dst)) $(dst).textContent = $(src).value;
+  updateAllDuals();
 }
 
 function drawForTab(name) {
@@ -167,6 +192,7 @@ function drawForTab(name) {
 }
 
 function init() {
+  initDualRanges(); // before the store/cost handlers so the cross-clamp runs first
   // tabs
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach((x) => x.classList.remove("active"));

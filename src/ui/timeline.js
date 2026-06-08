@@ -20,7 +20,7 @@ const el = (id) => document.getElementById(id);
 const MIN_POST = 10; // keep a little post-arrival timeline so that region always has room
 const LEFT_PAD = 16, RIGHT_PAD = 16;
 const AXIS_Y = 18, BAND_H = 16, LANE_GAP = 10;
-const COL = { test: "#d95f02", fever: "#e7298a", am: "#1b9e77", exp: "#9e2a2b" };
+const COL = { test: "#d95f02", fever: "#e7298a", am: "#1b9e77", testout: "#2c7fb8", exp: "#9e2a2b" };
 const LABEL = { exp: "Exposure", am: "Active monitoring / quarantine" };
 
 // Infection-risk options mirror the φ levels from the Undetected-infections tab (#r_phi).
@@ -70,7 +70,7 @@ function computeGeom() {
 function scenarioView() {
   return {
     exp: { start: state.exp.start, end: state.exp.end }, expRisk: state.expRisk,
-    test: state.test, fever: state.fever,
+    test: state.test, fever: state.fever, testOut: state.testOut,
     am: { on: state.am.on, start: state.am.start, end: state.am.end, reduction: state.am.reduction },
   };
 }
@@ -81,6 +81,7 @@ function ariaSummary() {
   if (state.test) parts.push("Testing at arrival.");
   if (state.fever) parts.push("Fever screening at arrival.");
   if (state.am.on) parts.push(`Active monitoring / quarantine for ${state.am.end - state.am.start} days.`);
+  if (state.am.on && state.testOut) parts.push(`Test out at day ${state.am.end}.`);
   return parts.join(" ");
 }
 
@@ -128,6 +129,11 @@ function buildSVG(g) {
     p.push(bandMarkup(key, COL[key], g));
     for (const edge of edgesFor(key)) p.push(handleMarkup(key, edge, g));
   }
+  // test-to-exit: a marker at the end of the monitoring window (pointer-events off so it
+  // doesn't block the bar's end-drag handle underneath it)
+  if (state.am.on && state.testOut) {
+    p.push(`<circle cx="${g.sx(state.am.end)}" cy="${g.bandY.am + BAND_H / 2}" r="4.5" fill="${COL.testout}" stroke="#fff" stroke-width="1.5" style="pointer-events:none"/>`);
+  }
   return `<svg id="tl2svg" class="tl2-svg" width="${g.width}" height="${g.H}" viewBox="0 0 ${g.width} ${g.H}" ` +
     `role="img" aria-label="${esc(ariaSummary())}">${p.join("")}</svg>`;
 }
@@ -152,7 +158,7 @@ function renderResult() {
     `<strong class="tl-result-num">${r["Median"].toFixed(2)}</strong> ` +
     `<span class="tl-result-ci">(${r["Lower bound"].toFixed(2)}–${r["Upper bound"].toFixed(2)}, ${Math.round(state.ci * 100)}% CI)</span>` +
     `<div class="tl-result-note">for ${state.am.end - state.am.start} days of active monitoring / quarantine · infection risk ${esc(riskLabel(state.expRisk))}. ` +
-    `Detection figure only — it depends on monitoring duration and exposure; testing and fever screening are not reflected here.</div></div>`;
+    `Detection figure only — it depends on monitoring duration and exposure; arrival testing, fever screening and test-out are not reflected here.</div></div>`;
 }
 
 function buildNotes(sc) {
@@ -160,6 +166,7 @@ function buildNotes(sc) {
   if (sc.test) items.push("Testing at arrival (day 0)");
   if (sc.fever) items.push("Fever screening at arrival (day 0)");
   if (sc.am.on) items.push(`Active monitoring / quarantine, ${sc.am.end - sc.am.start} days`);
+  if (sc.am.on && sc.testOut) items.push(`Test out at day ${sc.am.end} (end of monitoring)`);
   const head = `<div class="tl-card"><strong>Scenario</strong>` +
     `<p class="tl2-exp-note">Exposure window: ${-sc.exp.start}–${-sc.exp.end} days before arrival · infection risk ${esc(riskLabel(sc.expRisk))}.</p>`;
   if (!items.length) {
@@ -246,6 +253,8 @@ function renderTimeline() {
   el("cb_test").checked = state.test;              // reflect store (e.g. AM toggled from the AM tab)
   el("cb_fever").checked = state.fever;
   el("cb_am").checked = state.am.on;
+  el("cb_testout").checked = state.testOut;
+  el("cb_testout").disabled = !state.am.on; // test-to-exit only applies during a monitoring window
   positionGroups(geom);
   renderResult();
   el("tlNotes").innerHTML = buildNotes(scenarioView());
@@ -261,6 +270,7 @@ export function initTimeline() {
   sel.addEventListener("change", () => { state.expRisk = +sel.value; notify("timeline"); });
   for (const k of ["test", "fever"]) el(`cb_${k}`).addEventListener("change", (e) => { state[k] = e.target.checked; notify("timeline"); });
   el("cb_am").addEventListener("change", (e) => { state.am.on = e.target.checked; notify("timeline"); });
+  el("cb_testout").addEventListener("change", (e) => { state.testOut = e.target.checked; notify("timeline"); });
 
   subscribe(renderTimeline);
   window.addEventListener("resize", renderTimeline);

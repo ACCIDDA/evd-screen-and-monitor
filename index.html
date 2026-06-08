@@ -80,13 +80,25 @@
         </fieldset>
         <fieldset>
           <legend>Days since exposure (u)</legend>
-          <div class="row"><label>low</label><input type="range" id="r_u_lo" min="0" max="30" value="1"><span class="v" id="r_u_lo_v"></span></div>
-          <div class="row"><label>high</label><input type="range" id="r_u_hi" min="0" max="30" value="5"><span class="v" id="r_u_hi_v"></span></div>
+          <div class="dr-wrap">
+            <div class="dr-head"><span class="dr-l"></span><span class="dr-v" id="r_u_v"></span></div>
+            <div class="dr">
+              <span class="dr-track"></span><span class="dr-fill"></span>
+              <input type="range" id="r_u_lo" min="0" max="60" value="1">
+              <input type="range" id="r_u_hi" min="0" max="60" value="5">
+            </div>
+          </div>
         </fieldset>
         <fieldset>
           <legend>Monitoring / quarantine duration (days)</legend>
-          <div class="row"><label>from</label><input type="range" id="r_dur_lo" min="0" max="100" value="1"><span class="v" id="r_dur_lo_v"></span></div>
-          <div class="row"><label>to</label><input type="range" id="r_dur_hi" min="0" max="100" value="28"><span class="v" id="r_dur_hi_v"></span></div>
+          <div class="dr-wrap">
+            <div class="dr-head"><span class="dr-l"></span><span class="dr-v" id="r_dur_v"></span></div>
+            <div class="dr">
+              <span class="dr-track"></span><span class="dr-fill"></span>
+              <input type="range" id="r_dur_lo" min="0" max="120" value="1">
+              <input type="range" id="r_dur_hi" min="0" max="120" value="28">
+            </div>
+          </div>
         </fieldset>
         <fieldset>
           <legend>Reduction in onward transmission</legend>
@@ -100,12 +112,24 @@
         <fieldset>
           <legend>Cost assumptions</legend>
           <div class="row"><label>Secondary cases</label><input type="range" id="c_sec" min="0" max="25" value="4"><span class="v" id="c_sec_v"></span></div>
-          <div class="row"><label>Cost/case $M lo</label><input type="range" id="c_cpc_lo" min="0" max="20" value="3"><span class="v" id="c_cpc_lo_v"></span></div>
-          <div class="row"><label>Cost/case $M hi</label><input type="range" id="c_cpc_hi" min="0" max="20" value="5"><span class="v" id="c_cpc_hi_v"></span></div>
-          <div class="row"><label>$/person-day lo</label><input type="range" id="c_cpd_lo" min="0" max="100" value="10"><span class="v" id="c_cpd_lo_v"></span></div>
-          <div class="row"><label>$/person-day hi</label><input type="range" id="c_cpd_hi" min="0" max="100" value="20"><span class="v" id="c_cpd_hi_v"></span></div>
-          <div class="row"><label>False pos $K lo</label><input type="range" id="c_fp_lo" min="0" max="100" value="10"><span class="v" id="c_fp_lo_v"></span></div>
-          <div class="row"><label>False pos $K hi</label><input type="range" id="c_fp_hi" min="0" max="100" value="30"><span class="v" id="c_fp_hi_v"></span></div>
+          <div class="dr-wrap">
+            <div class="dr-head"><span class="dr-l">Cost/case ($M)</span><span class="dr-v" id="c_cpc_v"></span></div>
+            <div class="dr"><span class="dr-track"></span><span class="dr-fill"></span>
+              <input type="range" id="c_cpc_lo" min="0" max="20" value="3">
+              <input type="range" id="c_cpc_hi" min="0" max="20" value="5"></div>
+          </div>
+          <div class="dr-wrap">
+            <div class="dr-head"><span class="dr-l">$/person-day</span><span class="dr-v" id="c_cpd_v"></span></div>
+            <div class="dr"><span class="dr-track"></span><span class="dr-fill"></span>
+              <input type="range" id="c_cpd_lo" min="0" max="100" value="10">
+              <input type="range" id="c_cpd_hi" min="0" max="100" value="20"></div>
+          </div>
+          <div class="dr-wrap">
+            <div class="dr-head"><span class="dr-l">False positive ($K)</span><span class="dr-v" id="c_fp_v"></span></div>
+            <div class="dr"><span class="dr-track"></span><span class="dr-fill"></span>
+              <input type="range" id="c_fp_lo" min="0" max="100" value="10">
+              <input type="range" id="c_fp_hi" min="0" max="100" value="30"></div>
+          </div>
           <div class="row"><label>Hazard denom</label><input type="range" id="c_haz" min="10" max="10000" step="10" value="1000"><span class="v" id="c_haz_v"></span></div>
         </fieldset>
       </form>
@@ -143,6 +167,7 @@
       <div class="tl2-group" id="grp_post">
         <div class="tl2-gh">Post-arrival</div>
         <label class="tl2-ctl"><span class="tl2-sw" style="background:#1b9e77"></span><input type="checkbox" id="cb_am"> Active monitoring / quarantine <span class="tl2-ro" id="ro_am"></span></label>
+        <label class="tl2-ctl"><span class="tl2-sw" style="background:#2c7fb8"></span><input type="checkbox" id="cb_testout"> Test out</label>
       </div>
     </div>
     <div class="tl2" id="tl2"></div>

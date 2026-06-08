@@ -29,6 +29,7 @@ export const scenario = {
   // 100 = strict quarantine). Recorded only — not yet fed into a computed outcome.
   am: { on: false, start: 0, end: 16, reduction: 0 },
   test: false, fever: false,
+  testOut: false, // test-to-exit at the end of the monitoring window (parameter only for now)
 };
 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));

@@ -17,6 +17,21 @@ header h1 { font-size:1.4rem; margin:0 0 .2rem; }
 .row label { flex:1; } .row input[type=range] { flex:1.4; }
 .row .v { width:3.6em; text-align:right; font-variant-numeric:tabular-nums; color:var(--accent); }
 .opt { display:block; margin:.15rem 0; }
+/* dual-handle range slider (two overlapping range inputs share one track + fill) */
+.dr-wrap { margin:.5rem 0 .2rem; }
+.dr-head { display:flex; justify-content:space-between; align-items:baseline; font-size:.8rem; margin-bottom:.1rem; }
+.dr-head .dr-l { color:var(--ink); }
+.dr-head .dr-v { color:var(--accent); font-variant-numeric:tabular-nums; }
+.dr { position:relative; height:22px; }
+.dr-track { position:absolute; top:50%; left:0; right:0; transform:translateY(-50%); height:4px; background:var(--bd); border-radius:2px; }
+.dr-fill { position:absolute; top:50%; transform:translateY(-50%); height:4px; background:var(--accent); border-radius:2px; }
+.dr input[type=range] { position:absolute; top:0; left:0; width:100%; height:22px; margin:0; background:none; pointer-events:none; -webkit-appearance:none; appearance:none; }
+.dr input[type=range]:focus { outline:none; }
+.dr input[type=range]::-webkit-slider-runnable-track { background:transparent; border:none; }
+.dr input[type=range]::-moz-range-track { background:transparent; border:none; }
+.dr input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; pointer-events:auto; width:14px; height:14px; border-radius:50%; background:#fff; border:2px solid var(--accent); cursor:pointer; }
+.dr input[type=range]::-moz-range-thumb { pointer-events:auto; width:14px; height:14px; border-radius:50%; background:#fff; border:2px solid var(--accent); cursor:pointer; box-sizing:border-box; }
+.locked .dr input[type=range]::-webkit-slider-thumb { cursor:default; }
 .plot { width:100%; height:460px; }
 .timing { font-size:.78rem; color:var(--muted); margin:.2rem 0 0; }
 .twocol { display:grid; grid-template-columns:1fr 300px; gap:1.2rem; align-items:start; }
