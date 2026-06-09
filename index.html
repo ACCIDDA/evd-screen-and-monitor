@@ -16,6 +16,7 @@
   <nav class="tabs">
     <button class="tab active" data-tab="timeline">Intervention timeline</button>
     <button class="tab" data-tab="incub">Disease parameters</button>
+    <button class="tab" data-tab="tests">Test characteristics</button>
     <button class="tab" data-tab="risk">Active monitoring</button>
   </nav>
 
@@ -57,6 +58,40 @@
         <h3>Serial interval <span class="param-badge">placeholder</span></h3>
         <p class="param-desc">Time between symptom onset in successive cases in a transmission chain.</p>
         <label class="param-input">mean (days) <input type="number" value="15" min="0" disabled></label>
+        <p class="param-note">Illustrative — not yet used in any calculation.</p>
+      </section>
+    </div>
+  </section>
+
+  <!-- TAB: test characteristics (placeholders) -->
+  <section class="panel" id="panel-tests">
+    <p class="params-intro">Characteristics of the tests used in the screening / test-based strategies
+      (molecular test, fever screening). These are <strong>placeholders</strong> for the screening and
+      test-based-release modelling step — shown to map out the interface; they are not yet used in any
+      calculation.</p>
+    <div class="param-grid">
+      <section class="param-card">
+        <h3>Test sensitivity <span class="param-badge">placeholder</span></h3>
+        <p class="param-desc">Probability a truly infected (detectable) individual tests positive.</p>
+        <label class="param-input">sensitivity (%) <input type="number" value="95" min="0" max="100" disabled></label>
+        <p class="param-note">Illustrative — not yet used in any calculation.</p>
+      </section>
+      <section class="param-card">
+        <h3>Test specificity <span class="param-badge">placeholder</span></h3>
+        <p class="param-desc">Probability an uninfected individual tests negative; sets the false-positive rate.</p>
+        <label class="param-input">specificity (%) <input type="number" value="99" min="0" max="100" disabled></label>
+        <p class="param-note">Illustrative — not yet used in any calculation.</p>
+      </section>
+      <section class="param-card">
+        <h3>Detectability vs time since exposure <span class="param-badge">placeholder</span></h3>
+        <p class="param-desc">How sensitivity rises after exposure as viral load increases — drives the timing of testing at arrival and test-out.</p>
+        <label class="param-input">days to detectable <input type="number" value="3" min="0" disabled></label>
+        <p class="param-note">Illustrative — not yet used in any calculation.</p>
+      </section>
+      <section class="param-card">
+        <h3>Fever-screening sensitivity <span class="param-badge">placeholder</span></h3>
+        <p class="param-desc">Probability fever screening detects a case that is symptomatic at the time of screening.</p>
+        <label class="param-input">sensitivity (%) <input type="number" value="70" min="0" max="100" disabled></label>
         <p class="param-note">Illustrative — not yet used in any calculation.</p>
       </section>
     </div>
