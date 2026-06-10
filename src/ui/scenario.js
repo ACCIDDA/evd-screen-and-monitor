@@ -1,77 +1,59 @@
-// scenario.js — the shared, single-source-of-truth scenario for the linked tabs, plus the
-// validated undetected-infections computation for the active-monitoring window.
+// scenario.js — simplified-release store: a list of traveler profiles + one shared
+// active-monitoring length. Each profile's result is the VALIDATED undetected metric.
 //
-// Both the timeline tab and the Undetected-infections tab read/write this object and
-// subscribe to changes (two-way link). DOM controls/sliders are VIEWS of this data; they
-// are written back via non-event-firing setters, and `notify()` has a reentrancy guard, so
-// there are no update loops. phi is stored as a NUMBER (the risk core needs a number).
-//
-// Linked params: phi (expRisk), exposure window, active monitoring, and the CI used by the
-// risk table. Mapping to the validated metric risk = phi * S(d + u) (src/core/risk.js):
-//   u  = days since exposure at monitoring start, spans the exposure window:
-//        uLo = am.start - exp.end ,  uHi = am.start - exp.start
-//   d  = monitoring duration = am.end - am.start  (= the risk curve's max duration)
-// The result depends only on the window CLOSE (am.end); am.start cancels in u + d.
+// Monitoring is anchored at arrival (starts day 0). For a profile, days-since-exposure at
+// monitoring start, u, spans the exposure window: uLo = -expEnd, uHi = -expStart (expStart,
+// expEnd are <= 0, days before arrival). Duration d = amLength. So
+//   undetected per 10,000 = riskTable(computeRisk(u = scaleU(BASE_U, uLo, uHi),
+//                                                  durations=[amLength], phi, ci))
+// i.e. risk = phi * S(amLength + u) — exactly the validated metric (src/core/risk.js).
 
 import { computeRisk, riskTable } from "../core/risk.js";
 import { scaleU } from "../core/rng.js";
 import { POST, BASE_U } from "./data.js";
 
-export const EXP_MIN = -60, POST_MAX = 120;
-export const MIN_EXP_W = 4; // min exposure-window width (days) — keeps its label clear of arrival
-
-export const scenario = {
-  expRisk: 0.01,                  // phi (number) — mirrors the risk tab's #r_phi
-  ci: 0.95,                       // CI width — mirrors the risk tab's #r_ci
-  exp: { start: -10, end: -2 },   // exposure window (negative day offsets, before arrival)
-  // single active-monitoring/quarantine intervention: anchored at arrival (day 0), only the
-  // end is set; reduction = % reduction in onward transmission (0 = active monitoring …
-  // 100 = strict quarantine). Recorded only — not yet fed into a computed outcome.
-  am: { on: false, start: 0, end: 16, reduction: 0 },
-  test: false, fever: false,
-  testOut: false, // test-to-exit at the end of the monitoring window (parameter only for now)
-};
+export const EXP_MIN = -60;   // earliest exposure (days before arrival)
+export const AM_MAX = 120;    // max active-monitoring length (days)
+export const CI = 0.95;       // fixed credible-interval width (the validated default)
+export const PHI_LEVELS = [
+  { v: 1, label: "1/1" }, { v: 0.1, label: "1/10" }, { v: 0.01, label: "1/100" },
+  { v: 0.001, label: "1/1,000" }, { v: 0.0001, label: "1/10,000" },
+];
+export const phiLabel = (v) => (PHI_LEVELS.find((o) => o.v === Number(v)) || {}).label || String(v);
 
 const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
+let nextId = 1;
 
-export function clampScenario() {
-  const s = scenario;
-  s.exp.start = clamp(s.exp.start, EXP_MIN, 0);
-  s.exp.end = clamp(s.exp.end, s.exp.start, 0);
-  if (s.exp.end - s.exp.start < MIN_EXP_W) s.exp.start = Math.max(EXP_MIN, s.exp.end - MIN_EXP_W);
-  s.am.start = clamp(s.am.start, 0, POST_MAX);
-  s.am.end = clamp(s.am.end, s.am.start, POST_MAX);
-  s.am.reduction = clamp(s.am.reduction, 0, 100);
-  s.ci = clamp(s.ci, 0.5, 1);
+// keep a profile in-domain: expStart <= expEnd <= 0 (so u >= 0), phi numeric
+export function clampProfile(p) {
+  p.expStart = clamp(Math.round(p.expStart), EXP_MIN, 0);
+  p.expEnd = clamp(Math.round(p.expEnd), p.expStart, 0);
+  p.phi = Number(p.phi);
+  return p;
 }
 
-const listeners = new Set();
-let depth = 0;
-export function subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); }
-
-// Notify all views of a scenario change. `source` lets a view skip redundant self-work.
-// The depth guard makes notifies fired *during* a notify no-ops, so view renders that
-// (incorrectly) mutate state can't cause an infinite loop.
-export function notify(source) {
-  if (depth) return;
-  depth++;
-  try { clampScenario(); for (const fn of listeners) fn(source); } finally { depth = 0; }
+// begin/end are DAYS BEFORE ARRIVAL (begin >= end >= 0); stored as negative offsets
+export function newProfile(name, begin, end, phi) {
+  return clampProfile({ id: nextId++, name, expStart: -begin, expEnd: -end, phi: Number(phi) });
 }
 
-// Active-monitoring duration = risk curve's max duration; the value surfaced on the timeline.
-export function amDuration() { return scenario.am.end - scenario.am.start; }
+export const store = {
+  amLength: 14,
+  profiles: [
+    newProfile("High-risk contact", 21, 2, 0.01),
+    newProfile("Some risk", 14, 2, 0.001),
+    newProfile("Low risk", 10, 1, 0.0001),
+  ],
+};
 
-// Days-since-exposure-at-monitoring-start bounds, derived from the exposure window.
-export function uBounds() {
-  return { uLo: scenario.am.start - scenario.exp.end, uHi: scenario.am.start - scenario.exp.start };
+export function clampStore() {
+  store.amLength = clamp(Math.round(store.amLength), 0, AM_MAX);
+  store.profiles.forEach(clampProfile);
 }
 
-// Undetected symptomatic infections per 10,000 monitored, for a single duration d, using
-// the validated core. Returns the riskTable row { "Lower bound","Median","Upper bound" }.
-// Equals the Undetected tab's row at the same duration (same POST/BASE_U/ci → byte-identical).
-export function undetectedAt(d) {
-  const { uLo, uHi } = uBounds();
-  const u = scaleU(BASE_U, uLo, uHi);
-  const res = computeRisk({ samples: POST, u, durations: [d], phi: scenario.expRisk, ci: scenario.ci });
-  return riskTable(res)[0];
+// undetected symptomatic infections per 10,000 monitored at a monitoring length, for one
+// profile — the validated metric. Returns the riskTable row {Lower bound, Median, Upper bound}.
+export function undetectedForProfile(p, amLength = store.amLength, ci = CI) {
+  const u = scaleU(BASE_U, -p.expEnd, -p.expStart);
+  return riskTable(computeRisk({ samples: POST, u, durations: [amLength], phi: p.phi, ci }))[0];
 }

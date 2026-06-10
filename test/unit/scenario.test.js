@@ -1,71 +1,48 @@
-// scenario.test.js — locks the timeline ↔ Undetected-infections link to the validated core.
-// The number shown on the timeline must equal the Undetected tab's max-duration row.
+// scenario.test.js — locks the per-traveler-profile undetected figure to the validated core.
 
 import { describe, it, expect } from "vitest";
-import { scenario, undetectedAt, uBounds, amDuration, clampScenario, MIN_EXP_W } from "../../src/ui/scenario.js";
+import { store, newProfile, clampProfile, undetectedForProfile, CI } from "../../src/ui/scenario.js";
 import { computeRisk, riskTable } from "../../src/core/risk.js";
 import { scaleU } from "../../src/core/rng.js";
 import { POST, BASE_U } from "../../src/ui/data.js";
 
-const setScenario = (o) => Object.assign(scenario, o);
+// what the Undetected-infections table would compute directly for this profile + length
+const direct = (p, len, ci) =>
+  riskTable(computeRisk({ samples: POST, u: scaleU(BASE_U, -p.expEnd, -p.expStart), durations: [len], phi: p.phi, ci }))[0];
 
-describe("timeline ↔ undetected-infections link", () => {
-  it("anchored at arrival: duration == end day, with the right u bounds", () => {
-    // active monitoring starts at arrival (am.start = 0), so duration = am.end (the end day)
-    setScenario({ exp: { start: -10, end: -2 }, am: { on: true, start: 0, end: 28 } });
-    expect(amDuration()).toBe(28);                  // duration == end day (no arrival gap)
-    expect(uBounds()).toEqual({ uLo: 2, uHi: 10 }); // -exp.end ; -exp.start
+describe("traveler-profile undetected metric", () => {
+  it("equals a direct computeRisk/riskTable call (byte-identical)", () => {
+    const p = newProfile("t", 21, 2, 0.01); // exposed 21..2 days before arrival, φ 1/100
+    for (const len of [0, 7, 14, 28]) {
+      const a = undetectedForProfile(p, len, CI), b = direct(p, len, CI);
+      expect(a["Median"]).toBe(b["Median"]);
+      expect(a["Lower bound"]).toBe(b["Lower bound"]);
+      expect(a["Upper bound"]).toBe(b["Upper bound"]);
+    }
   });
 
-  it("timeline number == the Undetected tab's max-duration row (byte-identical)", () => {
-    setScenario({ exp: { start: -10, end: -2 }, am: { on: true, start: 0, end: 16 }, expRisk: 0.01, ci: 0.95 });
-    const { uLo, uHi } = uBounds();
-    const dHi = amDuration();
-    const durations = [];
-    for (let d = 0; d <= dHi; d++) durations.push(d);
-    const tab = riskTable(computeRisk({ samples: POST, u: scaleU(BASE_U, uLo, uHi), durations, phi: 0.01, ci: 0.95 }));
-    const tabMax = tab[tab.length - 1];
-    const tl = undetectedAt(dHi);
-    expect(tabMax["Duration, in days"]).toBe(16);
-    expect(tl["Median"]).toBe(tabMax["Median"]);
-    expect(tl["Lower bound"]).toBe(tabMax["Lower bound"]);
-    expect(tl["Upper bound"]).toBe(tabMax["Upper bound"]);
+  it("maps the exposure window to u bounds and is monotone in monitoring length", () => {
+    const p = newProfile("t", 21, 2, 0.001);
+    expect(p.expStart).toBe(-21);
+    expect(p.expEnd).toBe(-2); // uLo = -expEnd = 2, uHi = -expStart = 21
+    const m7 = undetectedForProfile(p, 7)["Median"], m28 = undetectedForProfile(p, 28)["Median"];
+    expect(m28).toBeLessThanOrEqual(m7); // longer monitoring ⇒ no more undetected
   });
 
-  it("is start-invariant: the figure depends only on the window close (am.end)", () => {
-    setScenario({ exp: { start: -10, end: -2 }, expRisk: 0.01, ci: 0.95, am: { on: true, start: 2, end: 16 } });
-    const a = undetectedAt(amDuration());
-    setScenario({ am: { on: true, start: 5, end: 16 } }); // same end, later start
-    const b = undetectedAt(amDuration());
-    expect(b["Median"]).toBe(a["Median"]);
-    expect(b["Lower bound"]).toBe(a["Lower bound"]);
-    expect(b["Upper bound"]).toBe(a["Upper bound"]);
+  it("treats a zero-width window (point exposure) as in-domain", () => {
+    const p = newProfile("pt", 5, 5, 0.01); // expStart == expEnd == -5
+    expect(() => undetectedForProfile(p, 14)).not.toThrow();
+    expect(Number.isFinite(undetectedForProfile(p, 14)["Median"])).toBe(true);
   });
 
-  it("enforces a minimum exposure-window width (keeps the pre-arrival label off arrival)", () => {
-    setScenario({ exp: { start: -2, end: -1 } }); // 1 day — too short
-    clampScenario();
-    expect(scenario.exp.end - scenario.exp.start).toBeGreaterThanOrEqual(MIN_EXP_W);
-    expect(scenario.exp.end).toBe(-1); // end preserved; start pushed back
+  it("clamps invalid windows (begin<end) and coerces φ to a number", () => {
+    const p = clampProfile({ id: 9, name: "x", expStart: -2, expEnd: -10, phi: "0.01" });
+    expect(p.expEnd).toBeGreaterThanOrEqual(p.expStart); // expEnd clamped up to expStart
+    expect(typeof p.phi).toBe("number");
   });
 
-  it("onward-transmission reduction is parameter-only (does NOT change the detection figure)", () => {
-    setScenario({ exp: { start: -10, end: -2 }, am: { on: true, start: 0, end: 16, reduction: 0 }, expRisk: 0.01, ci: 0.95 });
-    const none = undetectedAt(16);
-    setScenario({ am: { on: true, start: 0, end: 16, reduction: 80 } });
-    const heavy = undetectedAt(16);
-    expect(heavy["Median"]).toBe(none["Median"]);
-    expect(heavy["Lower bound"]).toBe(none["Lower bound"]);
-    expect(heavy["Upper bound"]).toBe(none["Upper bound"]);
-  });
-
-  it("the live CI flows through (narrower CI ⇒ tighter bounds)", () => {
-    setScenario({ exp: { start: -10, end: -2 }, am: { on: true, start: 2, end: 16 }, expRisk: 0.01 });
-    setScenario({ ci: 0.95 });
-    const wide = undetectedAt(14);
-    setScenario({ ci: 0.5 });
-    const narrow = undetectedAt(14);
-    expect(narrow["Upper bound"]).toBeLessThanOrEqual(wide["Upper bound"]);
-    expect(narrow["Lower bound"]).toBeGreaterThanOrEqual(wide["Lower bound"]);
+  it("seeds three example profiles", () => {
+    expect(store.profiles.length).toBe(3);
+    expect(store.profiles.map((p) => p.name)).toContain("High-risk contact");
   });
 });

@@ -1,232 +1,187 @@
-// main.js — dashboard wiring. All numbers come from the verified pure core (src/core/*),
-// asserted against R fixtures. This file is DOM + Plotly only.
-//
-// The Undetected-infections tab is LINKED two-way to the intervention timeline via the
-// shared scenario store (scenario.js): φ, the exposure window (→ u bounds) and the active-
-// monitoring duration (= the curve's max duration) are shared. Its sliders are VIEWS of the
-// store, written via plain .value (no input event) so there are no sync loops.
+// main.js — simplified release. Two tabs:
+//  - Results (landing): a small timeline showing the active-monitoring bar (drag its end, or
+//    use ←/→) + a table of undetected symptomatic infections per 10,000, one row per profile.
+//    The timeline is deliberately extensible — more interventions can be added as more bars.
+//  - Traveler profiles: cards to create/edit profiles (name, exposure window, infection risk)
+//    that feed the Results table.
+// All numbers come from the validated core via scenario.js (undetectedForProfile).
 
-import Plotly from "plotly.js-dist-min";
-import { incubationPoint } from "../core/incubation.js";
-import { computeCosts } from "../core/cost.js";
-import { computeRisk, riskTable, riskAxis } from "../core/risk.js";
-import { scaleU } from "../core/rng.js";
-import { POST, KDE, BASE_U, META } from "./data.js";
-import { scenario, notify, subscribe, uBounds, amDuration } from "./scenario.js";
-import { initTimeline } from "./timeline.js";
+import {
+  store, clampProfile, newProfile, undetectedForProfile, PHI_LEVELS, EXP_MIN,
+} from "./scenario.js";
+import { META } from "./data.js";
 
-const COLORS = ["#1b9e77", "#d95f02", "#7570b3", "#0072B2", "#e7298a"];
 const $ = (id) => document.getElementById(id);
-const val = (id) => $(id).value;
-const hexA = (hex, a) => {
-  const n = parseInt(hex.slice(1), 16);
-  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
-};
-const NOBAR = { displayModeBar: false, responsive: true };
-const panelActive = (id) => $("panel-" + id).classList.contains("active");
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 
-// ───────────────────────── Tab: incubation ─────────────────────────
-function drawIncubation() {
-  const pt = incubationPoint(POST);
-  const traces = KDE.polygons.map((poly, i) => ({
-    x: poly.x, y: poly.y, fill: "toself", fillcolor: hexA(COLORS[0], 0.25),
-    line: { color: COLORS[0], width: 1.5 }, mode: "lines", hoverinfo: "skip",
-    name: "KDE credible region", showlegend: i === 0,
-  }));
-  traces.push({
-    x: [pt.median], y: [pt.p95], mode: "markers", marker: { color: COLORS[0], size: 11 },
-    name: "Ebola point estimate",
-    hovertemplate: `median ${pt.median.toFixed(2)} d<br>95th pct ${pt.p95.toFixed(2)} d<extra></extra>`,
+// ───────────────────────── active-monitoring timeline (landing) ─────────────────────────
+const AM_DMAX = 60, TL_AXIS_Y = 18, TL_BAND_H = 18, TL_LP = 12, TL_RP = 12;
+
+function renderAmTimeline() {
+  const tl = $("amTimeline");
+  if (!tl) return;
+  const W = Math.max(tl.clientWidth || 0, 320) || 700;
+  const plotW = W - TL_LP - TL_RP;
+  const sx = (d) => TL_LP + (Math.min(Math.max(d, 0), AM_DMAX) / AM_DMAX) * plotW;
+  const len = store.amLength, lenC = Math.min(len, AM_DMAX);
+  const bandY = TL_AXIS_Y + 14, H = bandY + TL_BAND_H + 14;
+  const p = [];
+  // arrival line + label
+  p.push(`<line x1="${sx(0)}" y1="4" x2="${sx(0)}" y2="${H - 2}" stroke="#4F758B" stroke-width="1.5"/>`);
+  p.push(`<text x="${sx(0)}" y="11" font-size="10.5" text-anchor="start" font-weight="600" fill="#24224C">arrival</text>`);
+  // axis + day ticks/gridlines
+  p.push(`<line x1="${sx(0)}" y1="${TL_AXIS_Y}" x2="${sx(AM_DMAX)}" y2="${TL_AXIS_Y}" stroke="#8a9bac" stroke-width="1.5"/>`);
+  for (let d = 10; d <= AM_DMAX; d += 10) {
+    const x = sx(d);
+    p.push(`<line x1="${x}" y1="${TL_AXIS_Y}" x2="${x}" y2="${H - 2}" stroke="#e6eef4"/>`);
+    p.push(`<line x1="${x}" y1="${TL_AXIS_Y}" x2="${x}" y2="${TL_AXIS_Y + 3}" stroke="#8a9bac"/>`);
+    p.push(`<text x="${x}" y="11" font-size="10" text-anchor="middle" fill="#4F758B">${d}</text>`);
+  }
+  // active-monitoring bar
+  p.push(`<rect x="${sx(0)}" y="${bandY}" width="${Math.max(sx(lenC) - sx(0), 1)}" height="${TL_BAND_H}" rx="4" fill="#065D89" fill-opacity="0.85"/>`);
+  p.push(`<text x="${sx(0) + 6}" y="${bandY + TL_BAND_H / 2 + 4}" font-size="11" fill="#fff">active monitoring</text>`);
+  // draggable end handle
+  p.push(`<g id="amHandle" data-grip tabindex="0" role="slider" aria-label="Active-monitoring length in days" ` +
+    `aria-valuemin="0" aria-valuemax="${AM_DMAX}" aria-valuenow="${len}" transform="translate(${sx(lenC)},0)">` +
+    `<rect x="-7" y="${bandY - 4}" width="14" height="${TL_BAND_H + 8}" fill="transparent"/>` +
+    `<line class="amtl-grip" x1="0" y1="${bandY - 3}" x2="0" y2="${bandY + TL_BAND_H + 3}" stroke="#24224C" stroke-width="2"/></g>`);
+  tl.innerHTML = `<svg class="amtl-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" ` +
+    `aria-label="Active monitoring ${len} days from arrival">${p.join("")}</svg>`;
+  attachAmHandle(plotW, tl);
+}
+
+function attachAmHandle(plotW, tl) {
+  const h = $("amHandle");
+  if (!h) return;
+  h.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    const x0 = tl.querySelector("svg").getBoundingClientRect().left;
+    const move = (ev) => setLen(Math.round(((ev.clientX - x0 - TL_LP) / plotW) * AM_DMAX));
+    const up = () => { document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); };
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
   });
-  Plotly.react("incubPlot", traces, {
-    xaxis: { title: "median incubation period (days)" },
-    yaxis: { title: "95th-percentile incubation period (days)" },
-    legend: { x: 0.99, y: 0.01, xanchor: "right", yanchor: "bottom" },
-    margin: { t: 20 },
-  }, NOBAR);
-  $("incubReadout").textContent =
-    `median = ${pt.median.toFixed(2)} days · 95th percentile = ${pt.p95.toFixed(2)} days`;
+  h.addEventListener("keydown", (e) => {
+    let d = 0;
+    if (e.key === "ArrowLeft" || e.key === "ArrowDown") d = -1;
+    else if (e.key === "ArrowRight" || e.key === "ArrowUp") d = 1;
+    else return;
+    e.preventDefault(); setLen(store.amLength + d); $("amHandle")?.focus();
+  });
 }
 
-// ───────────────────────── Tab: undetected infections (linked to the timeline) ─────────────────────────
-function renderRisk() {
-  const t0 = performance.now();
-  const { uLo, uHi } = uBounds();
-  const dHi = amDuration();                 // curve max = active-monitoring duration
-  // reflect the store into the linked controls (plain .value => no input event => no loop)
-  $("r_phi").value = String(scenario.expRisk);
-  $("r_u_lo").value = uLo; $("r_u_hi").value = uHi;
-  $("r_dur_hi").value = dHi;
-  if (+val("r_dur_lo") > dHi) $("r_dur_lo").value = Math.max(0, dHi);
-  $("r_ci").value = scenario.ci;
-  $("r_redux").value = scenario.am.reduction;
-  syncLabels();
-
-  const phi = scenario.expRisk, ci = scenario.ci;
-  const durLo = Math.max(0, Math.min(+val("r_dur_lo"), dHi));
-  const durations = [];
-  for (let d = durLo; d <= dHi; d++) durations.push(d);
-  const u = scaleU(BASE_U, uLo, uHi);
-  const res = computeRisk({ samples: POST, u, durations, phi, ci });
-
-  // gate: when active monitoring isn't implemented, lock + grey the rest of the page
-  const on = scenario.am.on;
-  $("r_am_on").checked = on;
-  $("riskBody").classList.toggle("locked", !on);
-  ["r_phi", "r_u_lo", "r_u_hi", "r_dur_lo", "r_dur_hi", "r_ci", "r_redux",
-   "c_sec", "c_cpc_lo", "c_cpc_hi", "c_cpd_lo", "c_cpd_hi", "c_fp_lo", "c_fp_hi", "c_haz"].forEach((id) => { $(id).disabled = !on; });
-  $("riskBanner").innerHTML = on ? "" :
-    `<p class="banner">Active monitoring is not implemented — these settings are locked. Check “Implement active monitoring” (here or on the timeline) to edit. Figures below are illustrative.</p>`;
-
-  // table: bold the max-duration row (the value surfaced on the timeline)
-  const rows = riskTable(res);
-  $("riskTable").innerHTML =
-    "<thead><tr><th>Duration (days)</th><th>Lower</th><th>Median</th><th>Upper</th></tr></thead><tbody>" +
-    rows.map((r) => {
-      const isMax = r["Duration, in days"] === dHi;
-      const med = r["Median"].toFixed(2);
-      return `<tr${isMax ? ' class="tl-maxdur"' : ""}><td>${r["Duration, in days"]}</td><td>${r["Lower bound"].toFixed(2)}</td>` +
-        `<td>${isMax ? `<strong>${med}</strong>` : med}</td><td>${r["Upper bound"].toFixed(2)}</td></tr>`;
-    }).join("") + "</tbody>";
-
-  if (panelActive("risk")) drawRiskPlot(res, ci, dHi);
-  $("riskTiming").textContent = `computed in ${(performance.now() - t0).toFixed(1)} ms (over ${POST.shape.length} posterior draws)`;
+function setLen(v) {
+  store.amLength = Math.max(0, Math.min(Math.round(v), AM_DMAX));
+  renderAmTimeline();
+  renderResults();
 }
 
-function drawRiskPlot(res, ci, dHi) {
-  const xs = res.rows.map((r) => r.d), col = COLORS[3];
-  const ax = riskAxis(res);
-  Plotly.react("riskPlot", [
-    {
-      x: xs.concat([...xs].reverse()),
-      y: res.rows.map((r) => r.ltp).concat([...res.rows].reverse().map((r) => r.utp)),
-      fill: "toself", fillcolor: hexA(col, 0.2), line: { width: 0 }, hoverinfo: "skip", showlegend: false,
-    },
-    { x: xs, y: res.rows.map((r) => r.p50), mode: "lines", line: { color: col, width: 2 },
-      name: "median", hovertemplate: "%{x} d<br>%{y:.2e}<extra></extra>" },
-  ], {
-    title: `${res.label} symptomatic · ${Math.round(ci * 100)}% CI`,
-    xaxis: { title: "duration of active monitoring (days)" },
-    yaxis: {
-      title: "Pr(symptoms after active monitoring)", type: "log",
-      tickvals: ax.breaks, ticktext: ax.labels, range: [Math.log10(ax.pMin), Math.log10(ax.pMax)],
-    },
-    margin: { t: 40 }, showlegend: false,
-    shapes: [{ type: "line", x0: dHi, x1: dHi, yref: "paper", y0: 0, y1: 1, line: { color: "#999", width: 1, dash: "dot" } }],
-    annotations: [{ x: dHi, yref: "paper", y: 1, yanchor: "bottom", text: "monitoring ends", showarrow: false, font: { size: 10, color: "#999" } }],
-  }, NOBAR);
+// ───────────────────────── Result cards (landing) ─────────────────────────
+// One wide, single-column card per profile (room to add more result info later).
+function renderResults() {
+  $("am_len_v").textContent = store.amLength;
+  const has = store.profiles.length > 0;
+  $("resultsEmpty").hidden = has;
+  $("resultCards").hidden = !has;
+  $("resultCards").innerHTML = !has ? "" : store.profiles.map((p) => {
+    const r = undetectedForProfile(p);
+    return `<div class="rcard">
+      <div class="rcard-name">${esc(p.name)}</div>
+      <div class="rcard-metric">
+        <span class="rcard-mlabel">Undetected symptomatic infections per 10,000 monitored</span>
+        <span class="rcard-mval"><strong>${r["Median"].toFixed(2)}</strong> <span class="rcard-ci">(${r["Lower bound"].toFixed(2)} – ${r["Upper bound"].toFixed(2)})</span></span>
+      </div>
+    </div>`;
+  }).join("");
 }
 
-// ───────────────────────── Cost (same tab; shares φ via the store) ─────────────────────────
-// Uses the single shared φ (scenario.expRisk), so the cost figure stays consistent with the
-// undetected figure; the duration the AM bar ends at is marked, as on the undetected plot.
-function renderCost() {
-  if (!panelActive("risk")) return; // hidden -> skip Plotly; redrawn on tab show
-  const t0 = performance.now();
-  const params = {
-    secondaryCases: +val("c_sec"),
-    costPerCase: [+val("c_cpc_lo"), +val("c_cpc_hi")],
-    costPerDay: [+val("c_cpd_lo"), +val("c_cpd_hi")],
-    costFalsePos: [+val("c_fp_lo"), +val("c_fp_hi")],
-    hazardDenom: +val("c_haz"),
-  };
-  const out = computeCosts({ samples: POST, phis: [scenario.expRisk], params });
-  const dHi = amDuration(), s = out.series[0], o = out.optima[0], color = COLORS[2];
-  // y-axis: always floor at $1,000, ticks every decade up to the next power of 10 above the data
-  const yTop = Math.max(4, Math.ceil(Math.log10(Math.max(...s.hi))));
-  Plotly.react("costPlot", [
-    { x: s.xs.concat([...s.xs].reverse()), y: s.lo.concat([...s.hi].reverse()),
-      fill: "toself", fillcolor: hexA(color, 0.45), line: { width: 0 }, hoverinfo: "skip", showlegend: false },
-    { x: [o.durDays], y: [o.minCost], mode: "markers+text", marker: { color, size: 9 },
-      text: [`opt ${Math.round(o.durDays)}d`], textposition: "top center", showlegend: false,
-      hovertemplate: `optimal ${Math.round(o.durDays)} d<br>$${Math.round(o.minCost).toLocaleString()}<extra></extra>` },
-  ], {
-    title: `Cost per 100 monitored · ${s.label} symptomatic`,
-    xaxis: { title: "duration of active monitoring (days)", range: [5, Math.max(43, dHi + 3)] },
-    yaxis: { title: "cost range (100 individuals)", type: "log", range: [3, yTop], dtick: 1, tickprefix: "$", tickformat: "," },
-    margin: { t: 40 }, showlegend: false,
-    shapes: [{ type: "line", x0: dHi, x1: dHi, yref: "paper", y0: 0, y1: 1, line: { color: "#999", width: 1, dash: "dot" } }],
-    annotations: [{ x: dHi, yref: "paper", y: 1, yanchor: "bottom", text: "monitoring ends", showarrow: false, font: { size: 10, color: "#999" } }],
-  }, NOBAR);
-  $("costTiming").textContent = `computed in ${(performance.now() - t0).toFixed(1)} ms`;
+// ───────────────────────── Traveler-profile cards ─────────────────────────
+const phiOpts = (sel) =>
+  PHI_LEVELS.map((o) => `<option value="${o.v}"${o.v === Number(sel) ? " selected" : ""}>${o.label}</option>`).join("");
+
+// fill for a profile's two-anchor exposure slider. 0 (arrival) is on the RIGHT, so a value
+// v (days before arrival) sits at (1 - v/max) from the left edge.
+function updateExpFill(row, p) {
+  const max = +row.querySelector(".dr2-lo").max;
+  const begin = -p.expStart, end = -p.expEnd; // days before arrival; begin >= end
+  const fill = row.querySelector(".dr2-fill");
+  fill.style.left = `${(1 - begin / max) * 100}%`;
+  fill.style.width = `${((begin - end) / max) * 100}%`;
 }
 
-// ───────────────────────── dual-handle range sliders ─────────────────────────
-// Each .dr holds two overlapping <input type=range> presented as one slider; the two
-// inputs keep their ids/handlers, so the store wiring is unchanged.
-function updateDual(dr) {
-  const ins = [...dr.querySelectorAll('input[type="range"]')];
-  const min = +ins[0].min, max = +ins[0].max, span = max - min || 1;
-  const lo = Math.min(+ins[0].value, +ins[1].value), hi = Math.max(+ins[0].value, +ins[1].value);
-  const fill = dr.querySelector(".dr-fill");
-  fill.style.left = `${((lo - min) / span) * 100}%`;
-  fill.style.width = `${((hi - lo) / span) * 100}%`;
-  const v = dr.parentElement.querySelector(".dr-v");
-  if (v) v.textContent = `${lo} – ${hi}`;
-}
-function updateAllDuals() { document.querySelectorAll(".dr").forEach(updateDual); }
-function initDualRanges() {
-  // registered BEFORE the store/cost handlers so the clamp lands before they read the value
-  document.querySelectorAll(".dr").forEach((dr) => {
-    const ins = [...dr.querySelectorAll('input[type="range"]')];
-    const onInput = (e) => {
-      const [a, b] = ins;
-      if (+a.value > +b.value) { if (e.target === a) a.value = b.value; else b.value = a.value; }
-      updateDual(dr);
+function renderProfiles() {
+  const M = -EXP_MIN; // slider max = days-before-arrival range
+  $("profileList").innerHTML = store.profiles.map((p) => `
+    <div class="prow" data-id="${p.id}">
+      <input class="p-name" type="text" value="${esc(p.name)}" aria-label="Profile name">
+      <div class="p-exp">
+        <span class="p-exp-nums">exposed
+          <input class="p-begin" type="number" min="0" max="${M}" value="${-p.expStart}" aria-label="exposure begins, days before arrival"> to
+          <input class="p-end" type="number" min="0" max="${M}" value="${-p.expEnd}" aria-label="exposure ends, days before arrival"> d before arrival</span>
+        <div class="dr2">
+          <span class="dr2-track"></span><span class="dr2-fill"></span>
+          <input class="dr2-lo" type="range" min="0" max="${M}" value="${-p.expEnd}" aria-label="exposure ends, days before arrival">
+          <input class="dr2-hi" type="range" min="0" max="${M}" value="${-p.expStart}" aria-label="exposure begins, days before arrival">
+        </div>
+      </div>
+      <label class="p-risk">infection risk <select class="p-phi">${phiOpts(p.phi)}</select></label>
+      <button class="p-del" type="button" title="Remove profile" aria-label="Remove profile">✕</button>
+    </div>`).join("");
+
+  $("profileList").querySelectorAll(".prow").forEach((row) => {
+    const p = store.profiles.find((x) => x.id === +row.dataset.id);
+    const lo = row.querySelector(".dr2-lo"), hi = row.querySelector(".dr2-hi");
+    const begin = row.querySelector(".p-begin"), end = row.querySelector(".p-end");
+    const setSlider = () => { lo.value = -p.expEnd; hi.value = -p.expStart; };
+    const setNums = () => { begin.value = -p.expStart; end.value = -p.expEnd; };
+    const fromSlider = (e) => {
+      if (+lo.value > +hi.value) { if (e.target === lo) lo.value = hi.value; else hi.value = lo.value; } // no crossing
+      p.expEnd = -(+lo.value); p.expStart = -(+hi.value); // lo = end (closer to arrival), hi = begin (further back)
+      clampProfile(p); setNums(); updateExpFill(row, p); renderResults();
     };
-    ins.forEach((i) => i.addEventListener("input", onInput));
-    updateDual(dr);
+    const fromNums = () => {
+      p.expStart = -(+begin.value); p.expEnd = -(+end.value);
+      clampProfile(p); setSlider(); updateExpFill(row, p); renderResults();
+    };
+    lo.addEventListener("input", fromSlider);
+    hi.addEventListener("input", fromSlider);
+    begin.addEventListener("input", fromNums);
+    end.addEventListener("input", fromNums);
+    begin.addEventListener("change", setNums); // snap to clamped values on blur
+    end.addEventListener("change", setNums);
+    row.querySelector(".p-name").addEventListener("input", (e) => { p.name = e.target.value; renderResults(); });
+    row.querySelector(".p-phi").addEventListener("change", (e) => { p.phi = +e.target.value; renderResults(); });
+    row.querySelector(".p-del").addEventListener("click", () => {
+      store.profiles = store.profiles.filter((x) => x.id !== p.id);
+      renderProfiles(); renderResults();
+    });
+    updateExpFill(row, p);
   });
 }
 
 // ───────────────────────── wiring ─────────────────────────
-function syncLabels() {
-  const m = { r_ci: "r_ci_v", r_redux: "r_redux_v", c_sec: "c_sec_v", c_haz: "c_haz_v" };
-  for (const [src, dst] of Object.entries(m)) if ($(dst)) $(dst).textContent = $(src).value;
-  updateAllDuals();
-}
-
-function drawForTab(name) {
-  if (name === "incub") drawIncubation();
-  else if (name === "risk") { renderRisk(); renderCost(); }
-}
-
 function init() {
-  initDualRanges(); // before the store/cost handlers so the cross-clamp runs first
-  // tabs
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach((x) => x.classList.remove("active"));
     document.querySelectorAll(".panel").forEach((x) => x.classList.remove("active"));
     t.classList.add("active");
     $("panel-" + t.dataset.tab).classList.add("active");
-    drawForTab(t.dataset.tab);           // (re)draw now that the panel has real width
-    window.dispatchEvent(new Event("resize"));
+    if (t.dataset.tab === "results") { renderAmTimeline(); renderResults(); }
+    else renderProfiles();
   }));
 
-  // risk controls — write the shared store, then notify (sliders/select are views)
-  $("r_am_on").addEventListener("change", () => { scenario.am.on = $("r_am_on").checked; notify("risk"); });
-  $("r_phi").addEventListener("change", () => { scenario.expRisk = +val("r_phi"); notify("risk"); });
-  $("r_u_lo").addEventListener("input", () => { scenario.exp.end = scenario.am.start - +val("r_u_lo"); notify("risk"); });
-  $("r_u_hi").addEventListener("input", () => { scenario.exp.start = scenario.am.start - +val("r_u_hi"); notify("risk"); });
-  $("r_dur_hi").addEventListener("input", () => { scenario.am.end = scenario.am.start + +val("r_dur_hi"); notify("risk"); });
-  $("r_dur_lo").addEventListener("input", () => { syncLabels(); renderRisk(); }); // curve view-window (tab-local)
-  $("r_ci").addEventListener("input", () => { scenario.ci = +val("r_ci"); notify("risk"); });
-  $("r_redux").addEventListener("input", () => { scenario.am.reduction = +val("r_redux"); notify("risk"); }); // parameter only
+  $("addProfile").addEventListener("click", () => {
+    store.profiles.push(newProfile(`Profile ${store.profiles.length + 1}`, 10, 2, 0.01));
+    renderProfiles(); renderResults();
+  });
+  window.addEventListener("resize", () => { if ($("panel-results").classList.contains("active")) renderAmTimeline(); });
 
-  // cost controls — cost-specific params only (φ is shared via the store); redraw the cost figure
-  ["c_sec", "c_cpc_lo", "c_cpc_hi", "c_cpd_lo", "c_cpd_hi", "c_fp_lo", "c_fp_hi", "c_haz"].forEach((id) =>
-    $(id).addEventListener("input", () => { syncLabels(); renderCost(); }));
-
-  $("provenance").textContent =
-    `Data: ${META.object} (activeMonitr ${META.activeMonitrVersion}). ${META.citation}`;
-
-  subscribe(renderRisk);                 // undetected figure — in sync with the timeline
-  subscribe(renderCost);                 // cost figure — shares φ via the store
-  syncLabels();
-  drawIncubation();
-  initTimeline();                        // landing tab; also triggers the first renderRisk via the store
-  renderRisk();
-  renderCost();
+  $("provenance").textContent = `Data: ${META.object} (activeMonitr ${META.activeMonitrVersion}). ${META.citation}`;
+  renderProfiles();
+  renderAmTimeline();
+  renderResults();
 }
 
 window.addEventListener("DOMContentLoaded", init);
+
+export { init, renderResults, renderProfiles, renderAmTimeline }; // for tests

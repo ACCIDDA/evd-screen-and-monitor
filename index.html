@@ -3,214 +3,62 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>EVD Screen &amp; Monitor — Ebola active-monitoring planner</title>
+  <title>Active monitoring for Ebola — traveler profiles</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2324224C'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='%235ABAB6' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/src/ui/style.css" />
 </head>
 <body>
-  <header>
-    <h1>Determining Durations for Active Monitoring — Ebola</h1>
-    <p class="sub">A static reimplementation of the <code>activemonitr</code> Ebola outputs, verified against R.
-      All statistics computed in your browser.</p>
-  </header>
-
-  <nav class="tabs">
-    <button class="tab active" data-tab="timeline">Intervention timeline</button>
-    <button class="tab" data-tab="incub">Disease parameters</button>
-    <button class="tab" data-tab="tests">Test characteristics</button>
-    <button class="tab" data-tab="risk">Active monitoring</button>
-  </nav>
-
-  <!-- TAB 1: disease parameters (incubation = fitted/validated; rest = placeholders) -->
-  <section class="panel" id="panel-incub">
-    <p class="params-intro">Disease parameters for the modelled pathogen (Ebola). The incubation period is
-      fitted from outbreak data and validated against the R model. The remaining parameters are
-      <strong>placeholders</strong> for the onward-transmission modelling step — shown to map out the
-      interface; they are not yet used in any calculation.</p>
-
-    <section class="param-card">
-      <h3>Incubation period <span class="param-badge ok">fitted</span></h3>
-      <div class="layout">
-        <div class="prose">
-          <p>The point shows the estimated <strong>median</strong> and <strong>95th-percentile</strong>
-            incubation period for Ebola; the shaded region is the KDE credible region over the posterior
-            (median × 95th-percentile space).</p>
-          <p id="incubReadout" class="readout"></p>
+  <div class="frame">
+    <header class="masthead">
+      <div class="eyebrow-row">
+        <div class="logo-row">
+          <a class="logo logo-accidda" href="https://accidda.org/" target="_blank" rel="noopener" title="ACCIDDA — opens in new tab"><img src="/logos/accidda.png" alt="ACCIDDA"></a>
+          <span class="logo-divider"></span>
+          <a class="logo logo-epiengage" href="https://epiengage.org/" target="_blank" rel="noopener" title="epiEngage — opens in new tab"><img src="/logos/epiengage.png" alt="epiEngage"></a>
+          <span class="logo-divider"></span>
+          <a class="logo logo-insightnet" href="https://insightnet.us/" target="_blank" rel="noopener" title="Insight Net — opens in new tab"><img src="/logos/insightnet.png" alt="Insight Net"></a>
         </div>
-        <div><div class="plot" id="incubPlot"></div></div>
       </div>
+
+      <div class="title-block">
+        <h1 class="title">Active monitoring for Ebola</h1>
+        <h2 class="title-secondary">Traveler-profile screening dashboard</h2>
+      </div>
+      <p class="sub">Pick an active-monitoring length and see the undetected-infection risk for each traveler
+        profile. A static reimplementation of the <code>activemonitr</code> science, verified against R —
+        all statistics computed in your browser.</p>
+
+      <nav class="tabs">
+        <button class="tab active" data-tab="results">Results</button>
+        <button class="tab" data-tab="profiles">Traveler profiles</button>
+      </nav>
+    </header>
+
+    <!-- TAB 1: results (landing) -->
+    <section class="panel active" id="panel-results">
+      <p class="am-len-label">Active-monitoring length: <strong id="am_len_v"></strong> days
+        <span class="muted">— drag the bar's end, or focus it and use ←/→</span></p>
+      <div id="amTimeline" class="amtl"></div>
+      <p class="results-cap">Undetected symptomatic infections per <strong>10,000 monitored</strong>, by traveler
+        profile, at the chosen monitoring length. Values are the median with the 95% credible interval.</p>
+      <div id="resultCards"></div>
+      <p id="resultsEmpty" class="muted">No traveler profiles yet — add some on the
+        <strong>Traveler profiles</strong> tab.</p>
     </section>
 
-    <div class="param-grid">
-      <section class="param-card">
-        <h3>Reproductive number (R₀) <span class="param-badge">placeholder</span></h3>
-        <p class="param-desc">Average secondary cases per infectious individual; sets transmission intensity for the onward-transmission step.</p>
-        <label class="param-input">R₀ <input type="number" value="2.0" step="0.1" min="0" disabled></label>
-        <p class="param-note">Illustrative — not yet used in any calculation.</p>
-      </section>
-      <section class="param-card">
-        <h3>Infectious period distribution <span class="param-badge">placeholder</span></h3>
-        <p class="param-desc">How long an individual is infectious after onset; shapes how much a missed case can transmit.</p>
-        <label class="param-input">mean (days) <input type="number" value="9" min="0" disabled></label>
-        <label class="param-input">shape <select disabled><option>gamma</option></select></label>
-        <p class="param-note">Illustrative — not yet used in any calculation.</p>
-      </section>
-      <section class="param-card">
-        <h3>Serial interval <span class="param-badge">placeholder</span></h3>
-        <p class="param-desc">Time between symptom onset in successive cases in a transmission chain.</p>
-        <label class="param-input">mean (days) <input type="number" value="15" min="0" disabled></label>
-        <p class="param-note">Illustrative — not yet used in any calculation.</p>
-      </section>
-    </div>
-  </section>
+    <!-- TAB 2: traveler profiles editor -->
+    <section class="panel" id="panel-profiles">
+      <p class="muted">Define traveler profiles — each with an exposure window (when, before arrival, they were
+        exposed) and an infection risk. They feed the Results tab.</p>
+      <div id="profileList"></div>
+      <button id="addProfile" type="button" class="addbtn">+ Add profile</button>
+    </section>
 
-  <!-- TAB: test characteristics (placeholders) -->
-  <section class="panel" id="panel-tests">
-    <p class="params-intro">Characteristics of the tests used in the screening / test-based strategies
-      (molecular test, fever screening). These are <strong>placeholders</strong> for the screening and
-      test-based-release modelling step — shown to map out the interface; they are not yet used in any
-      calculation.</p>
-    <div class="param-grid">
-      <section class="param-card">
-        <h3>Test sensitivity <span class="param-badge">placeholder</span></h3>
-        <p class="param-desc">Probability a truly infected (detectable) individual tests positive.</p>
-        <label class="param-input">sensitivity (%) <input type="number" value="95" min="0" max="100" disabled></label>
-        <p class="param-note">Illustrative — not yet used in any calculation.</p>
-      </section>
-      <section class="param-card">
-        <h3>Test specificity <span class="param-badge">placeholder</span></h3>
-        <p class="param-desc">Probability an uninfected individual tests negative; sets the false-positive rate.</p>
-        <label class="param-input">specificity (%) <input type="number" value="99" min="0" max="100" disabled></label>
-        <p class="param-note">Illustrative — not yet used in any calculation.</p>
-      </section>
-      <section class="param-card">
-        <h3>Detectability vs time since exposure <span class="param-badge">placeholder</span></h3>
-        <p class="param-desc">How sensitivity rises after exposure as viral load increases — drives the timing of testing at arrival and test-out.</p>
-        <label class="param-input">days to detectable <input type="number" value="3" min="0" disabled></label>
-        <p class="param-note">Illustrative — not yet used in any calculation.</p>
-      </section>
-      <section class="param-card">
-        <h3>Fever-screening sensitivity <span class="param-badge">placeholder</span></h3>
-        <p class="param-desc">Probability fever screening detects a case that is symptomatic at the time of screening.</p>
-        <label class="param-input">sensitivity (%) <input type="number" value="70" min="0" max="100" disabled></label>
-        <p class="param-note">Illustrative — not yet used in any calculation.</p>
-      </section>
-    </div>
-  </section>
-
-  <!-- TAB 2: undetected infections (linked to the timeline) -->
-  <section class="panel" id="panel-risk">
-    <label class="amgate"><input type="checkbox" id="r_am_on"> Implement active monitoring</label>
-    <div id="riskBanner"></div>
-    <div class="layout" id="riskBody">
-      <form class="controls">
-        <fieldset>
-          <legend>Probability a monitored individual develops symptoms</legend>
-          <select id="r_phi">
-            <option value="1">1/1</option>
-            <option value="0.1">1/10</option>
-            <option value="0.01" selected>1/100</option>
-            <option value="0.001">1/1,000</option>
-            <option value="0.0001">1/10,000</option>
-          </select>
-        </fieldset>
-        <fieldset>
-          <legend>Days since exposure (u)</legend>
-          <div class="dr-wrap">
-            <div class="dr-head"><span class="dr-l"></span><span class="dr-v" id="r_u_v"></span></div>
-            <div class="dr">
-              <span class="dr-track"></span><span class="dr-fill"></span>
-              <input type="range" id="r_u_lo" min="0" max="60" value="1">
-              <input type="range" id="r_u_hi" min="0" max="60" value="5">
-            </div>
-          </div>
-        </fieldset>
-        <fieldset>
-          <legend>Monitoring / quarantine duration (days)</legend>
-          <div class="dr-wrap">
-            <div class="dr-head"><span class="dr-l"></span><span class="dr-v" id="r_dur_v"></span></div>
-            <div class="dr">
-              <span class="dr-track"></span><span class="dr-fill"></span>
-              <input type="range" id="r_dur_lo" min="0" max="120" value="1">
-              <input type="range" id="r_dur_hi" min="0" max="120" value="28">
-            </div>
-          </div>
-        </fieldset>
-        <fieldset>
-          <legend>Reduction in onward transmission</legend>
-          <div class="row"><input type="range" id="r_redux" min="0" max="100" value="0"><span class="v" id="r_redux_v"></span>%</div>
-          <p class="hint-sm">0% = active monitoring · 100% = strict quarantine. Recorded for the scenario; it does not change the detection figure below (that is a later modelling step).</p>
-        </fieldset>
-        <fieldset>
-          <legend>Credible-interval width</legend>
-          <div class="row"><input type="range" id="r_ci" min="0.5" max="1" step="0.01" value="0.95"><span class="v" id="r_ci_v"></span></div>
-        </fieldset>
-        <fieldset>
-          <legend>Cost assumptions</legend>
-          <div class="row"><label>Secondary cases</label><input type="range" id="c_sec" min="0" max="25" value="4"><span class="v" id="c_sec_v"></span></div>
-          <div class="dr-wrap">
-            <div class="dr-head"><span class="dr-l">Cost/case ($M)</span><span class="dr-v" id="c_cpc_v"></span></div>
-            <div class="dr"><span class="dr-track"></span><span class="dr-fill"></span>
-              <input type="range" id="c_cpc_lo" min="0" max="20" value="3">
-              <input type="range" id="c_cpc_hi" min="0" max="20" value="5"></div>
-          </div>
-          <div class="dr-wrap">
-            <div class="dr-head"><span class="dr-l">$/person-day</span><span class="dr-v" id="c_cpd_v"></span></div>
-            <div class="dr"><span class="dr-track"></span><span class="dr-fill"></span>
-              <input type="range" id="c_cpd_lo" min="0" max="100" value="10">
-              <input type="range" id="c_cpd_hi" min="0" max="100" value="20"></div>
-          </div>
-          <div class="dr-wrap">
-            <div class="dr-head"><span class="dr-l">False positive ($K)</span><span class="dr-v" id="c_fp_v"></span></div>
-            <div class="dr"><span class="dr-track"></span><span class="dr-fill"></span>
-              <input type="range" id="c_fp_lo" min="0" max="100" value="10">
-              <input type="range" id="c_fp_hi" min="0" max="100" value="30"></div>
-          </div>
-          <div class="row"><label>Hazard denom</label><input type="range" id="c_haz" min="10" max="10000" step="10" value="1000"><span class="v" id="c_haz_v"></span></div>
-        </fieldset>
-      </form>
-      <div class="results">
-        <div class="twocol">
-          <div><div class="plot" id="riskPlot"></div><p class="timing" id="riskTiming"></p></div>
-          <div>
-            <strong class="tbl-title">Undetected symptomatic infections<br>per 10,000 monitored</strong>
-            <div class="tablewrap"><table id="riskTable"></table></div>
-          </div>
-        </div>
-        <div class="costblock">
-          <strong class="tbl-title">Cost of active monitoring (per 100 individuals)</strong>
-          <div class="plot" id="costPlot"></div><p class="timing" id="costTiming"></p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- TAB 4: intervention timeline (Phase 2a — scenario-builder shell, no outcomes yet) -->
-  <section class="panel active" id="panel-timeline">
-    <p class="tl2-hint">Check interventions to place them on the timeline; drag a bar's left/right edge (or focus it and use ←/→) to set its dates.</p>
-    <!-- control panel ABOVE the timeline, grouped by period; swatch colors mirror COL in timeline.js -->
-    <div class="tl2-top" id="tl2top">
-      <div class="tl2-group" id="grp_pre">
-        <div class="tl2-gh">Pre-arrival</div>
-        <span class="tl2-lbl"><span class="tl2-sw" style="background:#9e2a2b"></span>Exposure window <span class="tl2-ro" id="ro_exp"></span></span>
-        <span class="tl2-risk"><label for="sel_exprisk">infection risk</label> <select id="sel_exprisk"></select></span>
-      </div>
-      <div class="tl2-group" id="grp_arrival">
-        <div class="tl2-gh">Arrival</div>
-        <label class="tl2-ctl"><span class="tl2-sw" style="background:#d95f02"></span><input type="checkbox" id="cb_test"> Testing</label>
-        <label class="tl2-ctl"><span class="tl2-sw" style="background:#e7298a"></span><input type="checkbox" id="cb_fever"> Fever screening</label>
-      </div>
-      <div class="tl2-group" id="grp_post">
-        <div class="tl2-gh">Post-arrival</div>
-        <label class="tl2-ctl"><span class="tl2-sw" style="background:#1b9e77"></span><input type="checkbox" id="cb_am"> Active monitoring / quarantine <span class="tl2-ro" id="ro_am"></span></label>
-        <label class="tl2-ctl"><span class="tl2-sw" style="background:#2c7fb8"></span><input type="checkbox" id="cb_testout"> Test out</label>
-      </div>
-    </div>
-    <div class="tl2" id="tl2"></div>
-    <div id="tlResult"></div>
-    <div id="tlNotes" class="tl-notes"></div>
-  </section>
-
-  <footer id="provenance"></footer>
+    <footer id="provenance"></footer>
+  </div>
   <script type="module" src="/src/ui/main.js"></script>
 </body>
 </html>
