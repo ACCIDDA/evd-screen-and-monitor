@@ -5,17 +5,25 @@ science in the [`activemonitr`](https://github.com/reichlab/activemonitr) R pack
 (Reich et al. 2018, *Sci Rep* 8:1093, doi:10.1038/s41598-018-19406-x), with a **layered R
 correctness oracle** so the JS provably reproduces the R math.
 
-## Phase 1 (current)
+**▶ Live: https://accidda.github.io/evd-screen-and-monitor/** (v0.1.0)
 
-A faithful parallel port of the three computational Ebola outputs of the original Shiny app:
+## The app (v0.1.0)
 
-1. **Incubation-period estimate** — median & 95th-percentile point + KDE credible-region polygon.
-2. **Undetected infections** — risk-vs-duration plot + per-10,000 table.
-3. **Cost of active monitoring** — cost-range plot + cost-optimal duration markers.
+A focused **traveler-profiles active-monitoring** tool, two tabs:
 
-Gamma/Ebola only. New capability (other intervention strategies, onward-transmission metrics,
-resource/staffing, scenario builder, other pathogens, entry screening) is **deferred** and will
-build on this verified core.
+1. **Results** — pick an active-monitoring length (draggable timeline) and see, for each
+   traveler profile, the undetected symptomatic infections per 10,000 monitored (median +
+   95% credible interval).
+2. **Traveler profiles** — define profiles (name, exposure window, infection risk φ) that
+   feed the Results.
+
+Each figure is the validated metric `φ · S(d + u)` over the 5000-row posterior. Gamma/Ebola
+only; everything else (other strategies, onward-transmission metrics, resource/staffing,
+scenario builder, other pathogens, entry screening) is **deferred**.
+
+> The earlier full multi-tab dashboard (intervention timeline, disease-parameters &
+> test-characteristics placeholders, linked active-monitoring + cost) is archived at branch
+> `archive/full-tabs` / tag `v0.2-full-tabs`.
 
 ## Verification
 

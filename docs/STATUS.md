@@ -1,54 +1,63 @@
-# STATUS — evd-screen-and-monitor (Phase 1)
+# STATUS — evd-screen-and-monitor
 
-_Last updated: 2026-06-06._
+_Last updated: 2026-06-10._
 
 ## Snapshot
 
-Core + verification + dashboard are **built and green**. Only CI/deploy remains in Phase 1.
+**v0.1.0 is live and public** → **https://accidda.github.io/evd-screen-and-monitor/**
 
-| # | Task | State |
-|---|---|---|
-| 1 | Scaffold repo (Vite + Vitest, GPL-3, dirs) | ✅ done |
-| 2 | R exports: posterior (verbatim 5000-row `_small`) + KDE polygon | ✅ done — deterministic, checksummed |
-| 3 | `stats.js` (gamma-only) + `labels.js` (`MASS::fractions` port) | ✅ done — labels match R exactly |
-| 4 | `incubation.js`, `risk.js`, `cost.js` | ✅ done — match R to machine precision |
-| 5 | R oracle: `gen_fixtures.R` + `diff_harness.R` | ✅ done |
-| 6 | Vitest suite vs fixtures | ✅ **12/12 passing** |
-| 7 | Dashboard UI (3 tabs, Plotly) | ✅ builds + serves; **pending user visual confirmation** |
-| 8 | CI workflow + GitHub Pages deploy | ⏳ **next** |
+A simplified **traveler-profiles active-monitoring** tool. The validated, R-checked core
+underneath is unchanged (12/12 fixtures green). The earlier full multi-tab dashboard is
+**archived** (branch `archive/full-tabs`, tag `v0.2-full-tabs`) to bring back later.
 
-## Verification evidence
+## Live app (v0.1.0)
 
-- `npm test` → **12/12 fixtures pass** (incubation, labels×2, cost×4, risk×5 incl. edges:
+Two tabs:
+- **Results** — an active-monitoring-length timeline (drag the bar's end) + result cards:
+  undetected symptomatic infections per 10,000 monitored, one card per traveler profile
+  (bold median with the 95% credible interval).
+- **Traveler profiles** — editor (name, exposure window via a two-anchor slider + number
+  boxes with 0 = arrival on the right, infection risk φ) that feeds the Results cards.
+
+Plotly removed (card/table UI) → bundle ~180 KB. Look & feel adapted from the IDCUP26
+screening dashboard (ACCIDDA × Insight Net × epiEngage palette + logos).
+
+**Faithfulness:** each profile figure is the validated metric (`undetectedForProfile`),
+locked byte-identical to a direct `computeRisk`/`riskTable` call in
+`test/unit/scenario.test.js`; DOM render smoke test in `test/unit/app-render.test.js`.
+**18/18 tests green.**
+
+## Task 8 — CI + deploy: ✅ DONE
+
+- `.github/workflows/ci.yml` — `npm test` + build on every push/PR.
+- `.github/workflows/pages.yml` — builds and deploys `dist/` to GitHub Pages on every push
+  to `main` (auto-deploy) / manual dispatch.
+- `vite.config.js` — `base: /evd-screen-and-monitor/` on build (root on dev).
+- Repo is **public**; Pages source = GitHub Actions; site verified HTTP 200.
+- ⏳ (optional, deferred) R drift layer in CI: nightly `gen_fixtures.R` drift-check +
+  `diff_harness.R` + assert `src/data/*.json` sha256.
+
+## Verified core (Phase 1 — unchanged)
+
+- `npm test` core fixtures: **12/12** (incubation, labels×2, cost×4, risk×5 incl. edges:
   φ→0, single draw, large u, ci=50%).
-- `Rscript R/oracle/diff_harness.R 200` → **200 random jobs, 0 divergences**, worst rel 7.5e-9.
-- Known-case parity (JS core vs real R, exact):
-  - Incubation point: median **8.873 d**, p95 **20.247 d**
-  - Cost (Ebola, φ=1/1000, default sliders): optimal **30.19 d** at **$580,031**
-  - Risk (Ebola, φ=1/100, d=14): per-10,000 table **{0.53, 3.73, 16.32}**
+- `Rscript R/oracle/diff_harness.R 200` → 200 jobs, 0 divergences, worst rel 7.5e-9.
+- Known-case parity: incubation median **8.873 d** / p95 **20.247 d**; risk (φ=1/100, d=14)
+  per-10,000 **{0.53, 3.73, 16.32}**.
 
-## Immediate next steps
+## Open / flagged
 
-1. **User confirms** the 3 tabs render correctly (`npm run dev`).
-2. **Task 8 — CI + deploy:**
-   - ✅ `.github/workflows/ci.yml`: runs `npm test` + build smoke check on every push/PR (no R needed).
-   - ⏳ R drift layer: on a nightly schedule or when the pinned `activeMonitr` version bumps, also run
-     `gen_fixtures.R` drift-check + `diff_harness.R` + assert `src/data/*.json` sha256.
-   - ⏳ GitHub Pages from `vite build` (`dist/`). Needs `vite.config.js` `base` path
-     (`/evd-screen-and-monitor/`) and a Pages deploy job. **Repo is private** → Pages needs a paid
-     plan or flipping the repo public (license governance still open — see below).
-3. **Remote:** ✅ `origin` = `github.com/ACCIDDA/evd-screen-and-monitor` (**private**), `main` pushed + tracking.
+- License: published GPL-3 (repo now public). Upstream GPL-2 `LICENSE` text vs GPL-3
+  `DESCRIPTION` mismatch noted — confirm governance.
+- Determinism deviation (full 5000 rows vs the original app's seeded 1000-row resample) —
+  accepted.
 
-## Open confirmations (flagged, not blockers)
+## Archived full dashboard + still-deferred work
 
-- Risk-plot determinism deviation (full 5000 rows vs the app's seeded 1000-row resample) — confirm acceptable.
-- License governance: upstream GPL-2 `LICENSE` file vs GPL-3 `DESCRIPTION`.
-- Distributional acceptance threshold for the risk plot vs the live app.
-
-## Deferred to later phases (do NOT pull forward without checking)
-
-Other strategies (quarantine, test-based release); onward-transmission risk metric; resource/staffing
-model; scenario builder (N importations across CDC risk tiers); COVID `lnorm` path (+ `erf` upgrade)
-and MERS/Smallpox; entry "screening" component. The independent review noted the current
-"P(onset after window)" metric can't distinguish quarantine from active monitoring — revisit the
-**risk metric definition** when adding strategies (it changes the core interface).
+The full multi-tab dashboard (intervention timeline; disease-parameters & test-characteristics
+placeholders; two-way-linked active-monitoring + cost; onward-transmission reduction; test-out)
+lives at **`archive/full-tabs` / `v0.2-full-tabs`** — restore from there when reintroducing tabs.
+Still-deferred science (do NOT pull forward without checking): onward-transmission risk metric;
+the test-based-release/quarantine distinction (the "P(onset after window)" metric can't tell them
+apart — revisit the metric when adding strategies); resource/staffing model; multi-importation
+scenario builder; other pathogens (COVID `lnorm` + `erf`, MERS/Smallpox); entry screening.
