@@ -23,3 +23,15 @@ export function baseUniforms(n, seed = 20200205) {
 export function scaleU(base, lo, hi) {
   return base.map((b) => lo + (hi - lo) * b);
 }
+
+// n fixed standard-normal draws from a seed (Box–Muller on the mulberry32 stream).
+// Used to propagate a user's incubation uncertainty deterministically.
+export function baseNormals(n, seed = 0x5eed) {
+  const rnd = mulberry32(seed);
+  const out = new Array(n);
+  for (let i = 0; i < n; i++) {
+    const u1 = Math.max(rnd(), 1e-12), u2 = rnd();
+    out[i] = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+  }
+  return out;
+}

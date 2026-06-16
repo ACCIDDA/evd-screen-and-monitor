@@ -45,6 +45,21 @@ export function pgamma(q, shape, scale, lowerTail = true) {
   return lowerTail ? p : 1 - p;
 }
 
+// qgamma: inverse of pgamma. Smallest q with pgamma(q,shape,scale) >= p, via
+// bracket-and-bisection (pgamma is monotone increasing in q). Used to translate a
+// user-specified incubation median + 95th percentile back into gamma (shape,scale).
+export function qgamma(p, shape, scale = 1) {
+  if (p <= 0) return 0;
+  if (p >= 1) return Infinity;
+  let lo = 0, hi = Math.max(shape * scale, scale) || 1;
+  while (pgamma(hi, shape, scale) < p) hi *= 2;
+  for (let i = 0; i < 200; i++) {
+    const mid = (lo + hi) / 2;
+    if (pgamma(mid, shape, scale) < p) lo = mid; else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
 // R's default type-7 quantile on an already-ascending-sorted numeric array
 export function quantileSorted(sorted, p) {
   const n = sorted.length;

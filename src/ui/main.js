@@ -8,8 +8,10 @@
 
 import {
   store, clampProfile, newProfile, undetectedForProfile, PHI_LEVELS, EXP_MIN,
+  customValid, customActive, customUncertain, customDraws, customP95,
 } from "./scenario.js";
-import { META } from "./data.js";
+import { incubationSummary, incubationPoint } from "../core/incubation.js";
+import { META, POST, KDE } from "./data.js";
 
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
@@ -80,6 +82,13 @@ function setLen(v) {
 // One wide, single-column card per profile (room to add more result info later).
 function renderResults() {
   $("am_len_v").textContent = store.amLength;
+  const cust = customActive();
+  $("customNote").hidden = !cust;
+  if (cust) {
+    $("customNote").innerHTML = customUncertain()
+      ? `Using a <strong>custom incubation period</strong> with propagated uncertainty — intervals are credible intervals over the specified 95% ranges.`
+      : `Using a <strong>custom incubation period</strong> (point estimate) — the interval reflects only exposure-timing spread, not parameter uncertainty.`;
+  }
   const has = store.profiles.length > 0;
   $("resultsEmpty").hidden = has;
   $("resultCards").hidden = !has;
@@ -159,6 +168,133 @@ function renderProfiles() {
   });
 }
 
+// ───────────────────────── Disease parameters ─────────────────────────
+function renderIncubTable() {
+  const el = $("incubTable");
+  if (!el || el.dataset.rendered) return; // posterior is fixed — render once
+  const s = incubationSummary(POST);
+  const ciPct = Math.round(s.ci * 100);
+  const rows = [
+    ["Median incubation period", s.median, "days"],
+    ["95th percentile of incubation", s.p95, "days"],
+    ["Gamma shape", s.shape, ""],
+    ["Gamma scale", s.scale, ""],
+  ];
+  const cell = (r, u) =>
+    `<strong>${r.point.toFixed(2)}</strong>${u ? " " + u : ""} ` +
+    `<span class="dparam-ci">(${ciPct}% CrI ${r.lower.toFixed(2)}–${r.upper.toFixed(2)})</span>`;
+  el.innerHTML = `<table class="dparam-table"><tbody>${
+    rows.map(([label, r, u]) =>
+      `<tr><th scope="row">${label}</th><td>${cell(r, u)}</td></tr>`).join("")
+  }</tbody></table>`;
+  el.dataset.rendered = "1";
+}
+
+// Incubation figure: x = median, y = 95th-percentile incubation (days). Filled KDE
+// credible region + default point; custom point overlaid when enabled. Hand-drawn SVG
+// (no Plotly) to match the simplified release.
+const FIG = { L: 50, R: 14, T: 12, B: 36, PAD: 0.06 };
+const DEF_PT = incubationPoint(POST);
+const niceTicks = (lo, hi, n = 4) => {
+  const step = (hi - lo) / n, out = [];
+  for (let i = 0; i <= n; i++) out.push(lo + i * step);
+  return out;
+};
+
+function renderIncubFigure() {
+  const host = $("incubPlot");
+  if (!host) return;
+  const W = Math.max(host.clientWidth || 0, 320) || 560, H = 300;
+  const allX = KDE.polygons.flatMap((p) => p.x).concat(DEF_PT.median);
+  const allY = KDE.polygons.flatMap((p) => p.y).concat(DEF_PT.p95);
+  const cust = customActive() ? { median: store.custom.median, p95: customP95() } : null;
+  const draws = customDraws(); // {median:[], p95:[]} when propagating uncertainty, else null
+  if (cust) { allX.push(cust.median); allY.push(cust.p95); }
+  if (draws) { allX.push(...draws.median); allY.push(...draws.p95); }
+  const ext = (arr) => {
+    let lo = Math.min(...arr), hi = Math.max(...arr), pad = (hi - lo) * FIG.PAD || 1;
+    return [lo - pad, hi + pad];
+  };
+  const [x0, x1] = ext(allX), [y0, y1] = ext(allY);
+  const px = (x) => FIG.L + ((x - x0) / (x1 - x0)) * (W - FIG.L - FIG.R);
+  const py = (y) => H - FIG.B - ((y - y0) / (y1 - y0)) * (H - FIG.T - FIG.B);
+  const s = [];
+  // axes
+  s.push(`<line x1="${FIG.L}" y1="${FIG.T}" x2="${FIG.L}" y2="${H - FIG.B}" stroke="#8a9bac"/>`);
+  s.push(`<line x1="${FIG.L}" y1="${H - FIG.B}" x2="${W - FIG.R}" y2="${H - FIG.B}" stroke="#8a9bac"/>`);
+  // gridlines + ticks
+  for (const t of niceTicks(x0, x1)) {
+    const x = px(t);
+    s.push(`<line x1="${x}" y1="${FIG.T}" x2="${x}" y2="${H - FIG.B}" stroke="#e6eef4"/>`);
+    s.push(`<text x="${x}" y="${H - FIG.B + 14}" font-size="10" text-anchor="middle" fill="#4F758B">${t.toFixed(1)}</text>`);
+  }
+  for (const t of niceTicks(y0, y1)) {
+    const y = py(t);
+    s.push(`<line x1="${FIG.L}" y1="${y}" x2="${W - FIG.R}" y2="${y}" stroke="#e6eef4"/>`);
+    s.push(`<text x="${FIG.L - 6}" y="${y + 3}" font-size="10" text-anchor="end" fill="#4F758B">${t.toFixed(1)}</text>`);
+  }
+  // axis titles
+  s.push(`<text x="${(FIG.L + W - FIG.R) / 2}" y="${H - 4}" font-size="11" text-anchor="middle" fill="#24224C">median incubation (days)</text>`);
+  s.push(`<text transform="translate(12,${(FIG.T + H - FIG.B) / 2}) rotate(-90)" font-size="11" text-anchor="middle" fill="#24224C">95th percentile (days)</text>`);
+  // KDE credible region
+  for (const poly of KDE.polygons) {
+    const pts = poly.x.map((x, i) => `${px(x).toFixed(1)},${py(poly.y[i]).toFixed(1)}`).join(" ");
+    s.push(`<polygon points="${pts}" fill="#065D89" fill-opacity="0.18" stroke="#065D89" stroke-width="1.5"/>`);
+  }
+  // custom draw cloud (propagated uncertainty) — faint dots, subsampled for perf
+  if (draws) {
+    const step = Math.max(1, Math.ceil(draws.median.length / 600));
+    for (let i = 0; i < draws.median.length; i += step) {
+      s.push(`<circle cx="${px(draws.median[i]).toFixed(1)}" cy="${py(draws.p95[i]).toFixed(1)}" r="1.3" fill="#b10026" fill-opacity="0.12"/>`);
+    }
+  }
+  // default point
+  s.push(`<circle cx="${px(DEF_PT.median)}" cy="${py(DEF_PT.p95)}" r="5" fill="#065D89"/>`);
+  // custom point
+  if (cust) {
+    s.push(`<line x1="${px(cust.median) - 7}" y1="${py(cust.p95)}" x2="${px(cust.median) + 7}" y2="${py(cust.p95)}" stroke="#b10026" stroke-width="2"/>`);
+    s.push(`<line x1="${px(cust.median)}" y1="${py(cust.p95) - 7}" x2="${px(cust.median)}" y2="${py(cust.p95) + 7}" stroke="#b10026" stroke-width="2"/>`);
+  }
+  // legend
+  let ly = FIG.T + 6;
+  const legend = [["#065D89", "Default (Bayesian) estimate"]];
+  if (cust) legend.push(["#b10026", draws ? "Custom estimate (draws)" : "Custom estimate"]);
+  for (const [c, label] of legend) {
+    s.push(`<circle cx="${W - FIG.R - 150}" cy="${ly}" r="4" fill="${c}"/>`);
+    s.push(`<text x="${W - FIG.R - 142}" y="${ly + 3}" font-size="10.5" fill="#24224C">${label}</text>`);
+    ly += 16;
+  }
+  host.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Incubation period: 95th percentile versus median, days">${s.join("")}</svg>`;
+}
+
+function renderDisease() {
+  renderIncubTable();
+  renderIncubFigure();
+}
+
+const RANGE_IDS = ["customMedianLo", "customMedianHi", "customRatioLo", "customRatioHi"];
+
+// grey out (rather than hide) a block + disable its inputs
+function setBlockEnabled(block, ids, on) {
+  if (on) block.classList.remove("is-off"); else block.classList.add("is-off");
+  ids.forEach((id) => { $(id).disabled = !on; });
+}
+
+function syncCustomIncub() {
+  const customOn = $("customIncubChk").checked;
+  const uncOn = $("customUncertainChk").checked;
+  store.custom.enabled = customOn;
+  store.custom.uncertain = uncOn;
+  setBlockEnabled($("customIncubFields"), ["customMedian", "customRatio", "customUncertainChk"], customOn);
+  setBlockEnabled($("customRangeFields"), RANGE_IDS, customOn && uncOn);
+  // derived 95th percentile (median × ratio) — shown in days for interpretation
+  const p95 = customP95();
+  $("customP95Derived").textContent = Number.isFinite(p95) ? p95.toFixed(1) : "—";
+  $("customIncubErr").hidden = !(customOn && !customValid());
+  renderIncubFigure();
+  renderResults();
+}
+
 // ───────────────────────── wiring ─────────────────────────
 function init() {
   document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
@@ -167,6 +303,7 @@ function init() {
     t.classList.add("active");
     $("panel-" + t.dataset.tab).classList.add("active");
     if (t.dataset.tab === "results") { renderAmTimeline(); renderResults(); }
+    else if (t.dataset.tab === "disease") renderDisease();
     else renderProfiles();
   }));
 
@@ -174,9 +311,50 @@ function init() {
     store.profiles.push(newProfile(`Profile ${store.profiles.length + 1}`, 10, 2, 0.01));
     renderProfiles(); renderResults();
   });
-  window.addEventListener("resize", () => { if ($("panel-results").classList.contains("active")) renderAmTimeline(); });
 
-  $("provenance").textContent = `Data: ${META.object} (activeMonitr ${META.activeMonitrVersion}). ${META.citation}`;
+  // custom incubation period controls
+  const setVal = (id, key) => { $(id).value = store.custom[key]; };
+  setVal("customMedian", "median"); setVal("customRatio", "ratio");
+  setVal("customMedianLo", "medianLo"); setVal("customMedianHi", "medianHi");
+  setVal("customRatioLo", "ratioLo"); setVal("customRatioHi", "ratioHi");
+  $("customP95Derived").textContent = customP95().toFixed(1);
+  setBlockEnabled($("customIncubFields"), ["customMedian", "customRatio", "customUncertainChk"], store.custom.enabled);
+  setBlockEnabled($("customRangeFields"), RANGE_IDS, store.custom.enabled && store.custom.uncertain);
+  $("customIncubChk").addEventListener("change", syncCustomIncub);
+  $("customUncertainChk").addEventListener("change", syncCustomIncub);
+  const bindNum = (id, key) => $(id).addEventListener("input", (e) => { store.custom[key] = parseFloat(e.target.value); syncCustomIncub(); });
+  bindNum("customMedianLo", "medianLo"); bindNum("customMedianHi", "medianHi");
+  bindNum("customRatioLo", "ratioLo"); bindNum("customRatioHi", "ratioHi");
+  // editing a central value rescales its 95% range proportionally (keeps the relative width)
+  const rnd = (x, d) => { const p = 10 ** d; return Math.round(x * p) / p; };
+  const bindCentral = (id, key, loK, hiK, loId, hiId, dp) => $(id).addEventListener("input", (e) => {
+    const old = store.custom[key], next = parseFloat(e.target.value);
+    if (Number.isFinite(old) && old > 0 && Number.isFinite(next) && next > 0) {
+      const f = next / old;
+      store.custom[loK] = $(loId).value = rnd(store.custom[loK] * f, dp);
+      store.custom[hiK] = $(hiId).value = rnd(store.custom[hiK] * f, dp);
+    }
+    store.custom[key] = next;
+    syncCustomIncub();
+  });
+  bindCentral("customMedian", "median", "medianLo", "medianHi", "customMedianLo", "customMedianHi", 1);
+  bindCentral("customRatio", "ratio", "ratioLo", "ratioHi", "customRatioLo", "customRatioHi", 2);
+  window.addEventListener("resize", () => {
+    if ($("panel-results").classList.contains("active")) renderAmTimeline();
+    if ($("panel-disease").classList.contains("active")) renderIncubFigure();
+  });
+
+  const doiMatch = META.citation.match(/doi:(\S+)/i);
+  if (doiMatch) {
+    const doi = doiMatch[1];
+    const linked = META.citation.replace(
+      doiMatch[0],
+      `<a href="https://doi.org/${doi}" target="_blank" rel="noopener">doi:${doi}</a>`
+    );
+    $("provenance").innerHTML = `Data and methods from ${linked}`;
+  } else {
+    $("provenance").textContent = `Data and methods from ${META.citation}`;
+  }
   renderProfiles();
   renderAmTimeline();
   renderResults();
