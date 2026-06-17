@@ -91,8 +91,11 @@ a { color:var(--accent); }
 input, select, button { font-family:inherit; }
 input[type=number], input[type=text], select { color:var(--ink); border:1px solid var(--rule); border-radius:5px; background:var(--field); padding:.15rem .3rem; }
 input:focus, select:focus { outline:none; border-color:var(--accent); }
+.prow-actions { display:flex; gap:.6rem; flex-wrap:wrap; }
 .addbtn { font-size:.85rem; padding:.5rem 1rem; border:1px solid var(--rule); border-radius:7px; background:var(--field); color:var(--ink); cursor:pointer; font-weight:600; }
 .addbtn:hover { background:var(--accent-wash); border-color:var(--accent-soft); }
+.addbtn-ghost { color:var(--ink-soft); font-weight:500; }
+.addbtn-ghost:hover { background:var(--paper-tint); color:var(--ink); }
 
 /* two-anchor (dual-handle) range = two overlapping inputs over a shared track + fill;
    reversed (direction:rtl) so 0 = arrival is on the RIGHT, days-before-arrival grow left */

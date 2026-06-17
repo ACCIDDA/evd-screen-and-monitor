@@ -45,15 +45,14 @@ const RATIO_DRAWS = POST.median.map((m, i) => POST.p95[i] / m); // per-draw p95/
 const r1 = (x) => Math.round(x * 10) / 10;
 const N = POST.shape.length;
 
-export const store = {
-  amLength: 14,
-  // custom incubation period: when enabled, results use the user's incubation
-  // distribution instead of the published posterior. With `uncertain` off it is a
-  // single gamma (point estimate); with it on, uncertainty is propagated over N draws
-  // by sampling the overall TIMING (median) and the tail-heaviness (95th÷median ratio)
-  // separately — the 95th percentile follows as median×ratio, so the two move together
-  // (positively correlated by construction). Yields a genuine credible interval + region.
-  custom: {
+// default custom incubation: when enabled, results use the user's incubation
+// distribution instead of the published posterior. With `uncertain` off it is a
+// single gamma (point estimate); with it on, uncertainty is propagated over N draws
+// by sampling the overall TIMING (median) and the tail-heaviness (95th÷median ratio)
+// separately — the 95th percentile follows as median×ratio, so the two move together
+// (positively correlated by construction). Yields a genuine credible interval + region.
+function defaultCustom() {
+  return {
     enabled: false,
     median: r1(DEFAULT_INCUB.median.point),
     ratio: r1(DEFAULT_INCUB.p95.point / DEFAULT_INCUB.median.point), // 95th÷median, central
@@ -61,13 +60,30 @@ export const store = {
     // 95% ranges, prefilled from the published posterior (median CrI; ratio CrI)
     medianLo: r1(DEFAULT_INCUB.median.lower), medianHi: r1(DEFAULT_INCUB.median.upper),
     ratioLo: r1(quantile(RATIO_DRAWS, 0.025)), ratioHi: r1(quantile(RATIO_DRAWS, 0.975)),
-  },
-  profiles: [
+  };
+}
+
+function defaultProfiles() {
+  return [
     newProfile("High-risk contact", 21, 2, 0.01),
     newProfile("Some risk", 14, 2, 0.001),
     newProfile("Low risk", 10, 1, 0.0001),
-  ],
+  ];
+}
+
+export const store = {
+  amLength: 14,
+  custom: defaultCustom(),
+  profiles: defaultProfiles(),
 };
+
+// reset the editable scenario back to the seed defaults and persist it
+export function resetStore() {
+  store.amLength = 14;
+  store.custom = defaultCustom();
+  store.profiles = defaultProfiles();
+  saveStore();
+}
 
 const finite = (...xs) => xs.every((x) => Number.isFinite(x));
 
@@ -153,6 +169,39 @@ export function clampStore() {
   store.amLength = clamp(Math.round(store.amLength), 0, AM_MAX);
   store.profiles.forEach(clampProfile);
 }
+
+// ───────────────────────── persistence (localStorage) ─────────────────────────
+// Persist the editable scenario (profiles + monitoring length + custom incubation)
+// so it survives refresh/restart. Guarded for non-browser contexts (e.g. tests).
+const STORE_KEY = "evd-screen-state-v1";
+const hasLS = () => typeof localStorage !== "undefined";
+
+export function saveStore() {
+  if (!hasLS()) return;
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+      amLength: store.amLength, custom: store.custom, profiles: store.profiles,
+    }));
+  } catch { /* quota / unavailable — silently skip */ }
+}
+
+export function loadStore() {
+  if (!hasLS()) return;
+  let s;
+  try { s = JSON.parse(localStorage.getItem(STORE_KEY) || "null"); }
+  catch { return; }                                   // corrupt JSON → keep defaults
+  if (!s || typeof s !== "object") return;
+  if (Number.isFinite(s.amLength)) store.amLength = s.amLength;
+  if (s.custom && typeof s.custom === "object") Object.assign(store.custom, s.custom);
+  if (Array.isArray(s.profiles)) {
+    store.profiles = s.profiles
+      .filter((p) => p && Number.isFinite(p.expStart) && Number.isFinite(p.expEnd) && Number.isFinite(p.phi))
+      .map((p) => clampProfile({ id: nextId++, name: String(p.name ?? "Profile"), expStart: p.expStart, expEnd: p.expEnd, phi: p.phi }));
+  }
+  clampStore();
+}
+
+loadStore(); // rehydrate at module load, before the UI first renders
 
 // undetected symptomatic infections per 10,000 monitored at a monitoring length, for one
 // profile — the validated metric. Returns the riskTable row {Lower bound, Median, Upper bound}.

@@ -8,7 +8,7 @@
 
 import {
   store, clampProfile, newProfile, undetectedForProfile, PHI_LEVELS, EXP_MIN,
-  customValid, customActive, customUncertain, customDraws, customP95, phiLabel,
+  customValid, customActive, customUncertain, customDraws, customP95, phiLabel, saveStore, resetStore,
 } from "./scenario.js";
 import { incubationSummary, incubationPoint } from "../core/incubation.js";
 import { META, POST, KDE } from "./data.js";
@@ -108,6 +108,7 @@ function renderResults() {
       </div>
     </div>`;
   }).join("");
+  saveStore(); // persist after every state change (renderResults is the universal post-change hook)
 }
 
 // ───────────────────────── Traveler-profile cards ─────────────────────────
@@ -289,6 +290,25 @@ function setBlockEnabled(block, ids, on) {
   ids.forEach((id) => { $(id).disabled = !on; });
 }
 
+// push the current store.custom state INTO the disease-tab controls (inputs, checkboxes,
+// derived readout, enabled/greyed state). Used on init and after Restore defaults.
+function syncCustomUI() {
+  $("customIncubChk").checked = store.custom.enabled;       // checkbox reflects persisted state
+  $("customUncertainChk").checked = store.custom.uncertain;
+  $("customMedian").value = store.custom.median;
+  $("customRatio").value = store.custom.ratio;
+  $("customMedianLo").value = store.custom.medianLo;
+  $("customMedianHi").value = store.custom.medianHi;
+  $("customRatioLo").value = store.custom.ratioLo;
+  $("customRatioHi").value = store.custom.ratioHi;
+  const p95 = customP95();
+  $("customP95Derived").textContent = Number.isFinite(p95) ? p95.toFixed(1) : "—";
+  setBlockEnabled($("customIncubFields"), ["customMedian", "customRatio", "customUncertainChk"], store.custom.enabled);
+  setBlockEnabled($("customRangeFields"), RANGE_IDS, store.custom.enabled && store.custom.uncertain);
+  $("customIncubErr").hidden = !(store.custom.enabled && !customValid());
+}
+
+// read the disease-tab controls INTO store.custom (on user interaction)
 function syncCustomIncub() {
   const customOn = $("customIncubChk").checked;
   const uncOn = $("customUncertainChk").checked;
@@ -321,14 +341,15 @@ function init() {
     renderProfiles(); renderResults();
   });
 
-  // custom incubation period controls
-  const setVal = (id, key) => { $(id).value = store.custom[key]; };
-  setVal("customMedian", "median"); setVal("customRatio", "ratio");
-  setVal("customMedianLo", "medianLo"); setVal("customMedianHi", "medianHi");
-  setVal("customRatioLo", "ratioLo"); setVal("customRatioHi", "ratioHi");
-  $("customP95Derived").textContent = customP95().toFixed(1);
-  setBlockEnabled($("customIncubFields"), ["customMedian", "customRatio", "customUncertainChk"], store.custom.enabled);
-  setBlockEnabled($("customRangeFields"), RANGE_IDS, store.custom.enabled && store.custom.uncertain);
+  $("restoreDefaults").addEventListener("click", () => {
+    if (!confirm("Restore the default traveler profiles, monitoring length, and incubation settings? Your current scenario will be replaced.")) return;
+    resetStore();
+    syncCustomUI();
+    renderProfiles(); renderAmTimeline(); renderResults(); renderIncubFigure();
+  });
+
+  // custom incubation period controls — populate from the (possibly restored) store
+  syncCustomUI();
   $("customIncubChk").addEventListener("change", syncCustomIncub);
   $("customUncertainChk").addEventListener("change", syncCustomIncub);
   const bindNum = (id, key) => $(id).addEventListener("input", (e) => { store.custom[key] = parseFloat(e.target.value); syncCustomIncub(); });
