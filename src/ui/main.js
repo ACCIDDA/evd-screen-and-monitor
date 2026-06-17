@@ -8,7 +8,7 @@
 
 import {
   store, clampProfile, newProfile, undetectedForProfile, PHI_LEVELS, EXP_MIN,
-  customValid, customActive, customUncertain, customDraws, customP95,
+  customValid, customActive, customUncertain, customDraws, customP95, phiLabel,
 } from "./scenario.js";
 import { incubationSummary, incubationPoint } from "../core/incubation.js";
 import { META, POST, KDE } from "./data.js";
@@ -94,11 +94,17 @@ function renderResults() {
   $("resultCards").hidden = !has;
   $("resultCards").innerHTML = !has ? "" : store.profiles.map((p) => {
     const r = undetectedForProfile(p);
+    const begin = -p.expStart, end = -p.expEnd; // days before arrival (begin >= end)
+    const len = begin - end;                    // length of the exposure window, days
     return `<div class="rcard">
-      <div class="rcard-name">${esc(p.name)}</div>
+      <div class="rcard-left">
+        <div class="rcard-name">${esc(p.name)}</div>
+        <div class="rcard-sub">Exposure length <strong>${len}</strong> d (${begin}–${end} d before arrival)<br>
+          infection risk <strong>${phiLabel(p.phi)}</strong></div>
+      </div>
       <div class="rcard-metric">
-        <span class="rcard-mlabel">Undetected symptomatic infections per 10,000 monitored</span>
         <span class="rcard-mval"><strong>${r["Median"].toFixed(2)}</strong> <span class="rcard-ci">(${r["Lower bound"].toFixed(2)} – ${r["Upper bound"].toFixed(2)})</span></span>
+        <span class="rcard-mlabel">Undetected symptomatic infections<br>per 10,000 monitored</span>
       </div>
     </div>`;
   }).join("");
@@ -126,7 +132,8 @@ function renderProfiles() {
       <div class="p-exp">
         <span class="p-exp-nums">exposed
           <input class="p-begin" type="number" min="0" max="${M}" value="${-p.expStart}" aria-label="exposure begins, days before arrival"> to
-          <input class="p-end" type="number" min="0" max="${M}" value="${-p.expEnd}" aria-label="exposure ends, days before arrival"> d before arrival</span>
+          <input class="p-end" type="number" min="0" max="${M}" value="${-p.expEnd}" aria-label="exposure ends, days before arrival"> d before arrival
+          <span class="p-exp-len">(<strong class="p-exp-len-v">${-p.expStart + p.expEnd}</strong> d long)</span></span>
         <div class="dr2">
           <span class="dr2-track"></span><span class="dr2-fill"></span>
           <input class="dr2-lo" type="range" min="0" max="${M}" value="${-p.expEnd}" aria-label="exposure ends, days before arrival">
@@ -141,16 +148,18 @@ function renderProfiles() {
     const p = store.profiles.find((x) => x.id === +row.dataset.id);
     const lo = row.querySelector(".dr2-lo"), hi = row.querySelector(".dr2-hi");
     const begin = row.querySelector(".p-begin"), end = row.querySelector(".p-end");
+    const lenV = row.querySelector(".p-exp-len-v");
     const setSlider = () => { lo.value = -p.expEnd; hi.value = -p.expStart; };
     const setNums = () => { begin.value = -p.expStart; end.value = -p.expEnd; };
+    const setLen = () => { lenV.textContent = -p.expStart + p.expEnd; }; // window length, days
     const fromSlider = (e) => {
       if (+lo.value > +hi.value) { if (e.target === lo) lo.value = hi.value; else hi.value = lo.value; } // no crossing
       p.expEnd = -(+lo.value); p.expStart = -(+hi.value); // lo = end (closer to arrival), hi = begin (further back)
-      clampProfile(p); setNums(); updateExpFill(row, p); renderResults();
+      clampProfile(p); setNums(); setLen(); updateExpFill(row, p); renderResults();
     };
     const fromNums = () => {
       p.expStart = -(+begin.value); p.expEnd = -(+end.value);
-      clampProfile(p); setSlider(); updateExpFill(row, p); renderResults();
+      clampProfile(p); setSlider(); setLen(); updateExpFill(row, p); renderResults();
     };
     lo.addEventListener("input", fromSlider);
     hi.addEventListener("input", fromSlider);

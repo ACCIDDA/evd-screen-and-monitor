@@ -27,9 +27,6 @@
         <h1 class="title">Traveler Screening for Ebola</h1>
         <h2 class="title-secondary">Screening scenario exploration dashboard</h2>
       </div>
-      <p class="sub">Pick an active-monitoring length and see the undetected-infection risk for each traveler
-        profile. A static reimplementation of the <code>activemonitr</code> science, verified against R —
-        all statistics computed in your browser.</p>
 
       <nav class="tabs">
         <button class="tab active" data-tab="results">Active monitoring and quarantine</button>
@@ -40,6 +37,9 @@
 
     <!-- TAB 1: results (landing) -->
     <section class="panel active" id="panel-results">
+      <p class="tab-desc">Select a length of active monitoring or quarantine after arrival. The number of
+        infections we would expect to occur out of the monitoring period per every 10,000 travelers with a
+        given profile monitored.</p>
       <p class="am-len-label">Active-monitoring length: <strong id="am_len_v"></strong> days
         <span class="muted">— drag the bar's end, or focus it and use ←/→</span></p>
       <div id="amTimeline" class="amtl"></div>
@@ -54,17 +54,16 @@
 
     <!-- TAB 2: traveler profiles editor -->
     <section class="panel" id="panel-profiles">
-      <p class="muted">Define traveler profiles — each with an exposure window (when, before arrival, they were
-        exposed) and an infection risk. They feed the Active monitoring and quarantine tab.</p>
+      <p class="tab-desc">Define traveler types based on time in country and risk of infection occurring
+        during that period but not becoming symptomatic before arrival.</p>
       <div id="profileList"></div>
       <button id="addProfile" type="button" class="addbtn">+ Add profile</button>
     </section>
 
     <!-- TAB 3: disease parameters -->
     <section class="panel" id="panel-disease">
-      <p class="muted">The natural-history parameters that drive every screening result. These come
-        from the Bayesian posterior of <a href="https://doi.org/10.1038/s41598-018-19406-x" target="_blank" rel="noopener">Reich
-        et al. (2018)</a> and are fixed in this release.</p>
+      <p class="tab-desc">Incubation period is assumed to be gamma distributed and is defined, here, by its
+        median and 95th percentile. You can optionally specify an alternate incubation period estimate.</p>
 
       <div class="dparam-row">
         <div class="dparam dparam-paramcard">
