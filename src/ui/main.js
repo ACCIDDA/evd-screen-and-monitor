@@ -292,12 +292,18 @@ function renderIncubFigure() {
   }
   host.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Incubation period: 95th percentile versus median, days">${s.join("")}</svg>`;
 
-  // legend, rendered as HTML clearly above the plot (not inside it)
-  const legend = [["#065D89", "Published estimate — Reich et al. (2018)"]];
-  if (cust) legend.push(["#b10026", draws ? "Custom estimate (draws)" : "Custom estimate"]);
+  // legend, rendered as HTML clearly above the plot (not inside it). Markers match
+  // the figure: a dot for the published point, a plus (cross) for the custom estimate.
+  const legend = [{ c: "#065D89", label: "Published estimate — Reich et al. (2018)", shape: "dot" }];
+  if (cust) legend.push({ c: "#b10026", label: draws ? "Custom estimate (draws)" : "Custom estimate", shape: "plus" });
+  const marker = ({ c, shape }) => shape === "plus"
+    ? `<svg class="incub-legend-mark" width="12" height="12" viewBox="-7 -7 14 14" aria-hidden="true">` +
+      `<line x1="-6" y1="0" x2="6" y2="0" stroke="${c}" stroke-width="2"/>` +
+      `<line x1="0" y1="-6" x2="0" y2="6" stroke="${c}" stroke-width="2"/></svg>`
+    : `<span class="incub-legend-dot" style="background:${c}"></span>`;
   const lg = $("incubLegend");
-  if (lg) lg.innerHTML = legend.map(([c, label]) =>
-    `<span class="incub-legend-item"><span class="incub-legend-dot" style="background:${c}"></span>${label}</span>`).join("");
+  if (lg) lg.innerHTML = legend.map((it) =>
+    `<span class="incub-legend-item">${marker(it)}${it.label}</span>`).join("");
 }
 
 function renderDisease() {

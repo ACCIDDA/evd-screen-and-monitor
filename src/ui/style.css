@@ -143,6 +143,7 @@ input:focus, select:focus { outline:none; border-color:var(--accent); }
 .incub-legend { display:flex; flex-wrap:wrap; gap:.3rem 1.1rem; margin:0 0 .5rem; font-size:.82rem; color:var(--ink); }
 .incub-legend-item { display:inline-flex; align-items:center; gap:.4rem; }
 .incub-legend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.incub-legend-mark { flex-shrink:0; }
 .custom-note { font-size:.82rem; color:var(--warn); margin:0 0 .8rem; }
 
 footer { margin-top:2rem; padding-top:1rem; border-top:1px solid var(--rule); color:var(--ink-faint); font-size:.75rem; }
