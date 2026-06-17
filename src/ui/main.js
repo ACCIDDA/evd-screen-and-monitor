@@ -42,34 +42,51 @@ function renderAmTimeline() {
   // active-monitoring bar
   p.push(`<rect x="${sx(0)}" y="${bandY}" width="${Math.max(sx(lenC) - sx(0), 1)}" height="${TL_BAND_H}" rx="4" fill="#065D89" fill-opacity="0.85"/>`);
   p.push(`<text x="${sx(0) + 6}" y="${bandY + TL_BAND_H / 2 + 4}" font-size="11" fill="#fff">active monitoring</text>`);
-  // draggable end handle
-  p.push(`<g id="amHandle" data-grip tabindex="0" role="slider" aria-label="Active-monitoring length in days" ` +
-    `aria-valuemin="0" aria-valuemax="${AM_DMAX}" aria-valuenow="${len}" transform="translate(${sx(lenC)},0)">` +
+  // draggable end handle (visual grip; focus/keyboard live on the persistent #amTimeline div)
+  p.push(`<g id="amHandle" data-grip transform="translate(${sx(lenC)},0)">` +
     `<rect x="-7" y="${bandY - 4}" width="14" height="${TL_BAND_H + 8}" fill="transparent"/>` +
     `<line class="amtl-grip" x1="0" y1="${bandY - 3}" x2="0" y2="${bandY + TL_BAND_H + 3}" stroke="#24224C" stroke-width="2"/></g>`);
   tl.innerHTML = `<svg class="amtl-svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" ` +
     `aria-label="Active monitoring ${len} days from arrival">${p.join("")}</svg>`;
-  attachAmHandle(plotW, tl);
+  tl.setAttribute("aria-valuemin", "0");
+  tl.setAttribute("aria-valuemax", String(AM_DMAX));
+  tl.setAttribute("aria-valuenow", String(len));
+  attachAmDrag(plotW, tl);
 }
 
-function attachAmHandle(plotW, tl) {
+// pointer drag on the handle. Re-attached each render (the handle element is rebuilt);
+// also focuses the timeline so the arrow keys work right after a click/drag.
+function attachAmDrag(plotW, tl) {
   const h = $("amHandle");
   if (!h) return;
   h.addEventListener("pointerdown", (e) => {
     e.preventDefault();
+    tl.focus();
     const x0 = tl.querySelector("svg").getBoundingClientRect().left;
     const move = (ev) => setLen(Math.round(((ev.clientX - x0 - TL_LP) / plotW) * AM_DMAX));
     const up = () => { document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); };
     document.addEventListener("pointermove", move);
     document.addEventListener("pointerup", up);
   });
-  h.addEventListener("keydown", (e) => {
+}
+
+// keyboard on the timeline. Attached ONCE to the persistent div (it survives re-renders,
+// so focus is kept) — SVG <g> focus was unreliable across browsers.
+function attachAmKeys() {
+  const tl = $("amTimeline");
+  if (!tl) return;
+  tl.addEventListener("keydown", (e) => {
     let d = 0;
     if (e.key === "ArrowLeft" || e.key === "ArrowDown") d = -1;
     else if (e.key === "ArrowRight" || e.key === "ArrowUp") d = 1;
+    else if (e.key === "Home") return setLen(0);
+    else if (e.key === "End") return setLen(AM_DMAX);
     else return;
-    e.preventDefault(); setLen(store.amLength + d); $("amHandle")?.focus();
+    e.preventDefault();
+    setLen(store.amLength + d);
   });
+  // clicking anywhere on the track focuses it (so the arrows work immediately)
+  tl.addEventListener("pointerdown", () => tl.focus());
 }
 
 function setLen(v) {
@@ -125,11 +142,17 @@ function updateExpFill(row, p) {
   fill.style.width = `${((begin - end) / max) * 100}%`;
 }
 
+// size a name <textarea> to its content so long names wrap onto extra lines
+function autoGrow(el) {
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
+}
+
 function renderProfiles() {
   const M = -EXP_MIN; // slider max = days-before-arrival range
   $("profileList").innerHTML = store.profiles.map((p) => `
     <div class="prow" data-id="${p.id}">
-      <input class="p-name" type="text" value="${esc(p.name)}" aria-label="Profile name">
+      <textarea class="p-name" rows="1" aria-label="Profile name">${esc(p.name)}</textarea>
       <div class="p-exp">
         <span class="p-exp-nums">exposed
           <input class="p-begin" type="number" min="0" max="${M}" value="${-p.expStart}" aria-label="exposure begins, days before arrival"> to
@@ -168,7 +191,9 @@ function renderProfiles() {
     end.addEventListener("input", fromNums);
     begin.addEventListener("change", setNums); // snap to clamped values on blur
     end.addEventListener("change", setNums);
-    row.querySelector(".p-name").addEventListener("input", (e) => { p.name = e.target.value; renderResults(); });
+    const nameEl = row.querySelector(".p-name");
+    nameEl.addEventListener("input", (e) => { p.name = e.target.value; autoGrow(e.target); renderResults(); });
+    autoGrow(nameEl); // size the name box to its content (wraps long names)
     row.querySelector(".p-phi").addEventListener("change", (e) => { p.phi = +e.target.value; renderResults(); });
     row.querySelector(".p-del").addEventListener("click", () => {
       store.profiles = store.profiles.filter((x) => x.id !== p.id);
@@ -265,16 +290,14 @@ function renderIncubFigure() {
     s.push(`<line x1="${px(cust.median) - 7}" y1="${py(cust.p95)}" x2="${px(cust.median) + 7}" y2="${py(cust.p95)}" stroke="#b10026" stroke-width="2"/>`);
     s.push(`<line x1="${px(cust.median)}" y1="${py(cust.p95) - 7}" x2="${px(cust.median)}" y2="${py(cust.p95) + 7}" stroke="#b10026" stroke-width="2"/>`);
   }
-  // legend
-  let ly = FIG.T + 6;
-  const legend = [["#065D89", "Default (Bayesian) estimate"]];
-  if (cust) legend.push(["#b10026", draws ? "Custom estimate (draws)" : "Custom estimate"]);
-  for (const [c, label] of legend) {
-    s.push(`<circle cx="${W - FIG.R - 150}" cy="${ly}" r="4" fill="${c}"/>`);
-    s.push(`<text x="${W - FIG.R - 142}" y="${ly + 3}" font-size="10.5" fill="#24224C">${label}</text>`);
-    ly += 16;
-  }
   host.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="Incubation period: 95th percentile versus median, days">${s.join("")}</svg>`;
+
+  // legend, rendered as HTML clearly above the plot (not inside it)
+  const legend = [["#065D89", "Published estimate — Reich et al. (2018)"]];
+  if (cust) legend.push(["#b10026", draws ? "Custom estimate (draws)" : "Custom estimate"]);
+  const lg = $("incubLegend");
+  if (lg) lg.innerHTML = legend.map(([c, label]) =>
+    `<span class="incub-legend-item"><span class="incub-legend-dot" style="background:${c}"></span>${label}</span>`).join("");
 }
 
 function renderDisease() {
@@ -340,6 +363,8 @@ function init() {
     store.profiles.push(newProfile(`Profile ${store.profiles.length + 1}`, 10, 2, 0.01));
     renderProfiles(); renderResults();
   });
+
+  attachAmKeys(); // keyboard control on the persistent timeline div (once)
 
   $("restoreDefaults").addEventListener("click", () => {
     if (!confirm("Restore the default traveler profiles, monitoring length, and incubation settings? Your current scenario will be replaced.")) return;

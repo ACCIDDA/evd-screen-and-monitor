@@ -9,8 +9,9 @@ it("renders the results table and the profiles editor without throwing", async (
     if (stubs[id]) return stubs[id];
     let html = "";
     const s = {
-      id, value: "14", textContent: "", hidden: false,
+      id, value: "14", textContent: "", hidden: false, checked: false,
       addEventListener() {}, querySelectorAll() { return []; },
+      setAttribute() {}, focus() {},
       classList: { add() {}, remove() {} },
     };
     Object.defineProperty(s, "innerHTML", { get: () => html, set: (v) => { html = v; } });
@@ -27,7 +28,7 @@ it("renders the results table and the profiles editor without throwing", async (
 
   // landing: one result CARD per seed profile, bold median + (lo – hi)
   const cards = stub("resultCards").innerHTML;
-  expect(cards).toContain("High-risk contact");
+  expect(cards).toContain("Known exposure, no PPE");
   expect((cards.match(/class="rcard"/g) || []).length).toBe(3);
   expect(cards).toMatch(/<strong>[\d.]+<\/strong> <span class="rcard-ci">\([\d.]+ – [\d.]+\)/);
 

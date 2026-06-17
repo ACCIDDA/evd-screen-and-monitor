@@ -43,6 +43,6 @@ describe("traveler-profile undetected metric", () => {
 
   it("seeds three example profiles", () => {
     expect(store.profiles.length).toBe(3);
-    expect(store.profiles.map((p) => p.name)).toContain("High-risk contact");
+    expect(store.profiles.map((p) => p.name)).toContain("Known exposure, no PPE");
   });
 });

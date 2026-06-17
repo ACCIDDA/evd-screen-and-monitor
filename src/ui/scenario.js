@@ -65,9 +65,9 @@ function defaultCustom() {
 
 function defaultProfiles() {
   return [
-    newProfile("High-risk contact", 21, 2, 0.01),
-    newProfile("Some risk", 14, 2, 0.001),
-    newProfile("Low risk", 10, 1, 0.0001),
+    newProfile("Known exposure, no PPE", 5, 2, 0.1),
+    newProfile("Health-care worker", 23, 2, 0.001),       // 21-day stint + 2-day travel buffer
+    newProfile("Traveler, no known exposure", 16, 2, 0.0001), // 14-day stay + 2-day travel buffer
   ];
 }
 
